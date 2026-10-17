@@ -1,0 +1,17 @@
+{
+  "name": "@repo/config",
+  "private": true,
+  "exports": {
+    "./tsconfig.json": "./tsconfig.json",
+    "./eslint-preset.js": "./eslint-preset.js"
+  },
+  "scripts": {
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0",
+    "eslint": "^9.0.0",
+    "@eslint/js": "^9.0.0"
+  }
+}

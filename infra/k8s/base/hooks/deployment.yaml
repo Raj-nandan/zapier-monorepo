@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hooks
+  namespace: zapier
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: hooks }
+  template:
+    metadata:
+      labels: { app: hooks }
+    spec:
+      containers:
+        - name: hooks
+          image: ghcr.io/<user>/zap-hooks:latest
+          ports: [{ containerPort: 3002 }]

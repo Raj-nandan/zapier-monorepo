@@ -1,0 +1,16 @@
+name: cd
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: latest }
+      - run: bun install --frozen-lockfile
+      - run: turbo lint && turbo build && turbo test
+      - run: docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/${{ github.repository }}/zap-api:${{ github.sha }} ./apps/api
+      - run: kubectl apply -k infra/k8s/overlays/prod
+      - run: kubectl rollout status deployment/api -n zapier --timeout=120s

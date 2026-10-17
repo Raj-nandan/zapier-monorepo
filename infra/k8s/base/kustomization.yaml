@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - api/deployment.yaml
+  - api/service.yaml
+  - api/hpa.yaml
+  - hooks/deployment.yaml
+  - hooks/service.yaml
+  - hooks/hpa.yaml
+  - web/deployment.yaml
+  - web/service.yaml
+  - processor/deployment.yaml
+  - worker/deployment.yaml
+  - worker/keda-scaledobject.yaml
+  - scheduler/deployment.yaml
+  - ingress.yaml
+  - configmap.yaml
+  - externalsecret.yaml
+  - migrate-job.yaml

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zapier-config
+  namespace: zapier
+data:
+  NODE_ENV: production
+  KAFKA_BROKERS: kafka:9092
+  TOPIC: zap-events
+  REDIS_URL: redis://redis:6379
+  BACKEND_URL: http://api:80
+  HOOKS_URL: http://hooks:80

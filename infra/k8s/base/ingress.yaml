@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zapier
+  namespace: zapier
+spec:
+  rules:
+    - host: api.zapier.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: api, port: { number: 80 } } }
+    - host: hooks.zapier.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: hooks, port: { number: 80 } } }

@@ -1,0 +1,16 @@
+{
+  "name": "@repo/schemas",
+  "private": true,
+  "scripts": {
+    "lint": "eslint .",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0",
+    "eslint": "^9.0.0"
+  }
+}

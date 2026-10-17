@@ -1,0 +1,16 @@
+{
+  "name": "@repo/actions",
+  "private": true,
+  "scripts": {
+    "lint": "eslint .",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@repo/schemas": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0",
+    "eslint": "^9.0.0"
+  }
+}

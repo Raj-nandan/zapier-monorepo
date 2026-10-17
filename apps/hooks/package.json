@@ -1,0 +1,21 @@
+{
+  "name": "@repo/hooks",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "build": "tsc",
+    "start": "bun run dist/index.js",
+    "lint": "eslint .",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@repo/config": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@repo/logger": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0",
+    "eslint": "^9.0.0"
+  }
+}

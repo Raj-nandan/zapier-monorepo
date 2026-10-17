@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-job
+  namespace: zapier
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: ghcr.io/<user>/zap-api:latest
+          command: ["bun", "run", "db:migrate"]
