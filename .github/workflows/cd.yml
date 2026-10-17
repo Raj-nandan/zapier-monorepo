@@ -23,7 +23,7 @@ jobs:
       - run: echo "IMAGE_PREFIX=ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
       - run: |
           for app in web api hooks processor worker scheduler; do
-            docker buildx build --platform linux/amd64,linux/arm64 -t "${IMAGE_PREFIX}/zap-${app}:${{ github.sha }}" ./apps/${app} --push
+            docker buildx build --platform linux/amd64,linux/arm64 -t "${IMAGE_PREFIX}/zap-${app}:${{ github.sha }}" -f ./apps/${app}/Dockerfile . --push
           done
       - uses: azure/setup-kubectl@v4
       - run: |
