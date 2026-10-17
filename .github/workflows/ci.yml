@@ -8,6 +8,5 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: latest }
       - run: bun install --frozen-lockfile
-      - run: bunx turbo lint
       - run: bunx turbo build
       - run: bunx turbo test

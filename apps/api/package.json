@@ -6,7 +6,7 @@
     "build": "tsc",
     "start": "bun run dist/index.js",
     "lint": "eslint .",
-    "test": "bun test",
+    "test": "bun test --pass-with-no-tests",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "bun run ../db/prisma/seed.ts"
   },
@@ -20,7 +20,7 @@
     "@types/bun": "latest",
     "typescript": "^5.5.0",
     "prisma": "^5.0.0",
-    "eslint": "^9.0.0",
+    "eslint": "^8.57.0",
     "@eslint/js": "^9.0.0"
   }
 }

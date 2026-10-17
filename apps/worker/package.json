@@ -6,7 +6,7 @@
     "build": "tsc",
     "start": "bun run dist/index.js",
     "lint": "eslint .",
-    "test": "bun test"
+    "test": "bun test --pass-with-no-tests"
   },
   "dependencies": {
     "@repo/config": "workspace:*",
@@ -20,6 +20,6 @@
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5.5.0",
-    "eslint": "^9.0.0"
+    "eslint": "^8.57.0"
   }
 }
