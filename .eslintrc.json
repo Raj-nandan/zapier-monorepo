@@ -1,0 +1,4 @@
+{
+  "extends": ["eslint:recommended"],
+  "ignorePatterns": ["node_modules", "dist", ".next", "coverage", "bun.lock"]
+}
