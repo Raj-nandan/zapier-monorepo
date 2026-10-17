@@ -10,6 +10,8 @@ Phases are sequential. Do not start phase N+1 until phase N gate is green. Testi
 | 04 | `phase-04-frontend/frontend-planning/` (requirements, pages, user-flows, design-system, content) | All Next.js web UI in one phase | Create Zap + history + detail work against real API |
 | 05 | `phase-05-devops.md` | Docker + K8s + CI/CD + observability | `kind` deploy + k6 100rps lag<5s; Oracle prod live |
 
+CI/CD workflows deferred to Phase 05 — re-add `.github/workflows/` when source code is stable.
+
 Reference docs: `../BRD.md`, `../PRD.md`, `../TRD.md`, `../DATAFLOW.md`, `../CLOUD-HOSTING.md`, `../TESTING.md`.
 
 Target tree (all phases combined):
