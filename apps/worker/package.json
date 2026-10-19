@@ -1,25 +1,41 @@
 {
   "name": "@repo/worker",
   "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "build": "tsc",
     "start": "bun run dist/index.js",
-    "lint": "eslint .",
-    "test": "bun test --pass-with-no-tests"
+    "lint": "eslint . --ext .ts",
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@repo/actions": "workspace:*",
     "@repo/config": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/kafka": "workspace:*",
+    "@repo/logger": "workspace:*",
     "@repo/schemas": "workspace:*",
-    "@repo/actions": "workspace:*",
     "@repo/triggers": "workspace:*",
-    "@repo/logger": "workspace:*"
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "redis": "^6.3.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^20.0.0",
     "@types/bun": "latest",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
     "typescript": "^5.5.0",
-    "eslint": "^8.57.0"
+    "eslint": "^8.57.0",
+    "vitest": "^2.1.0"
   }
 }

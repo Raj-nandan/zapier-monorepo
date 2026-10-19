@@ -41,7 +41,7 @@ Fix vs legacy: publish ID only (not email payload), never delete skipped rows si
 
 ## 5. Execute — Worker (consumer, ordered actions)
 ```
-consumer group=main-worker, fromBeginning=false (prod), autoCommit=false
+consumer group=main-worker, fromBeginning=false (prod), manual offset commit (payload.autoCommit=false, commitOffsetsIfNecessary after chain)
 on msg {zapRunId, zapRevision}:
   ZapRun.status=RUNNING
   fetch ZapRun+Zap(revision=pinned)+Trigger+Actions ORDER BY sortingOrder

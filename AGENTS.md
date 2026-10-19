@@ -37,3 +37,6 @@ Docs are source of truth. If code contradicts docs, docs win. Never edit docs to
 - Tests fail and root cause is unclear.
 - Security-sensitive changes (auth, secrets, rate limits).
 - Database migrations or schema changes.
+
+## Do not read .env file — Ask User
+-be assured that env file is done correctly and refer to only .env.example file for reference

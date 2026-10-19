@@ -6,7 +6,7 @@
 - Single Prisma schema in `packages/db/prisma/schema.prisma` (fixes 3 drifted copies in legacy). All apps import `PrismaClient` from `@repo/db`.
 - Contracts in `packages/schemas` (Zod): `ZapCreate, TriggerMetadata, ActionMetadata`. Frontend + API share them.
 - Kafka helpers in `packages/kafka`: idempotent producer, consumer factory, topic constants, DLQ helper.
-- Plugin registries: `packages/triggers`, `packages/actions` expose `TriggerHandler / ActionHandler { slug, schema, fields[] (dynamic input spec), fetchSample(), run() }`. App handlers receive decrypted `ConnectedAccount` token (never to client); `http-request` generic stays token-free.
+- Plugin registries: `packages/triggers` exposes `TriggerHandler { slug, schema, fields[], fetchSample() }` (samples data); `packages/actions` exposes `ActionHandler { slug, schema, fields[], run() }` (performs work) — they are **not** interchangeable. `schema` is a Zod type from `packages/schemas`. `fields[]` is the dynamic input spec: `FieldSpec { key, label, type: text|textarea|number|url|select|boolean, required, options?, placeholder? }`, where `key` matches the corresponding key in the `packages/schemas` metadata contract (`triggerMetadata` / `actionMetadata`) so the Phase 04 builder renders these and maps values via `{{step.output.*}}`. Each registry is a `Map<slug, handler>` built from its per-handler folders; lookup is `getHandler(slug)` and an unknown slug throws. App handlers receive decrypted `ConnectedAccount` token (never to client); `http-request` generic stays token-free.
 - Logging: `packages/logger` (pino JSON + `x-request-id` + OpenTelemetry trace id).
 
 ## 2. Services (1 image = 1 Deployment)
@@ -27,7 +27,7 @@
 ## 4. Kafka Design
 - Topics: `zap-events` (12 partitions, key=`zapId` preserves per-Zap order; hot-Zap note: single Zap caps at 1 partition throughput, split load across Zaps), `zap-events.retry` (backoff consumer), `zap-events.DLT` (poison pills).
 - Producer: `idempotent:true, acks:all, retries:5`, payload `{ zapRunId, zapId, attempt, zapRevision }` only (ID-only, never business data).
-- Consumer: `autoCommit:false`, commit after successful chain; on action error → retry with backoff ×5 → DLT + mark `ZapRun FAILED`. Processor polls every 1s `LIMIT 100`, `nextRetryAt = now()+min(2^attempts,300)s`, attempts>10 → DLT row (no silent drop).
+- Consumer: manual offset commit — kafkajs `ConsumerConfig` has no `autoCommit`; the `eachBatch` handler sets `payload.autoCommit = false` and commits via `commitOffsetsIfNecessary()` only after the chain succeeds; on action error → retry with backoff ×5 → DLT + mark `ZapRun FAILED`. Processor polls every 1s `LIMIT 100`, `nextRetryAt = now()+min(2^attempts,300)s`, attempts>10 → DLT row (no silent drop).
 - Brokers via `KAFKA_BROKERS` env (fixes hardcoded `localhost:9092`). Dev: Redpanda. Prod: Upstash/Redpanda Cloud.
 
 ## 5. API & Webhook Contracts
@@ -36,7 +36,7 @@
   - `POST /api/v1/user/signin` → timing-safe bcrypt compare → generic `401 invalid credentials` → on success issue access JWT (15min, `{userId, email, v: tokenVersion, jti}`) + rotating refresh token (7d, stored hash in DB/Redis) as `httpOnly Secure SameSite=Lax` cookies. No token in URL or body.
   - `POST /api/v1/user/logout` clears cookies + adds `jti` to Redis denylist until expiry. Password change bumps `tokenVersion`, revoking all sessions.
   - Forgot/reset (email users only, `src/routes/user.ts` + `lib/email.ts` via SMTP): `POST /api/v1/user/forgot {email}` → always 200 (no enumeration) + rate-limit 3/hr/email; if user exists with password, create single-use `PasswordReset(tokenHash, 15min)` and email link `WEB_URL/reset?token=` (raw token never stored). `POST /api/v1/user/reset {token, password≥8}` → timing-safe lookup, fail closed on expired/used → hash → `tx(password update + tokenVersion++ + PasswordReset.usedAt)` + revoke sessions. OAuth-only accounts get “use provider login” without revealing account type.
-- OAuth (Google + GitHub, `src/routes/auth.ts` + `src/lib/oauth.ts` via `arctic`, state + PKCE + nonce in Redis 10min, exact `OAUTH_REDIRECT_URL` allowlist):
+- OAuth (Google + GitHub, `src/routes/auth.ts` + `src/lib/oauth.ts`; hand-rolled authorization-code flow on native `fetch` — no OIDC library, since GitHub has no OIDC discovery endpoint and `openid-client` would only cover Google; state + PKCE S256 + nonce in Redis 10min, exact `OAUTH_REDIRECT_URL` allowlist):
   1. Web `oauth-buttons.tsx` → `GET /api/v1/auth/google|github` → api stores `state+code_verifier+nonce`, 302 to provider.
   2. Callback: verify `state`, fail closed 401 on mismatch/expired; exchange `code+verifier` → tokens; fetch profile (email_verified required for Google).
   3. Upsert: `tx(User by verified email + Account{provider, providerAccountId})`; link if email exists, else create User (null password). Encrypt provider `accessToken` at rest.

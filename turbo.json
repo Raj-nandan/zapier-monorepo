@@ -1,10 +1,11 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": ["DATABASE_URL", "DIRECT_URL", "KAFKA_BROKERS", "TOPIC", "REDIS_URL", "NODE_ENV"],
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**"] },
     "dev": { "cache": false, "persistent": true },
     "lint": {},
-    "test": {},
+    "test": { "dependsOn": ["^test"] },
     "db:migrate": {},
     "db:seed": {}
   }

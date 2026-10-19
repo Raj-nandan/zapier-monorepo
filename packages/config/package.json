@@ -1,15 +1,24 @@
 {
   "name": "@repo/config",
   "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./tsconfig.json": "./tsconfig.json"
   },
   "scripts": {
-    "lint": "eslint ."
+    "build": "tsc --rootDir src --outDir dist",
+    "lint": "eslint . --ext .ts",
+    "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5.5.0",
-    "eslint": "^8.57.0"
+    "eslint": "^8.57.0",
+    "vitest": "^2.1.0"
   }
 }

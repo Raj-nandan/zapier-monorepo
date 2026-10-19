@@ -6,3 +6,188 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum ZapRunStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+  SUSPENDED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String?
+  tokenVersion Int      @default(0)
+  zaps         Zap[]
+  accounts     Account[]
+  connections  ConnectedAccount[]
+  folders      Folder[]
+  createdAt    DateTime @default(now())
+}
+
+model Account {
+  id                String @id @default(cuid())
+  userId            String
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String
+  providerAccountId String
+  email             String?
+  accessTokenEnc    String?
+  @@unique([provider, providerAccountId])
+}
+
+model ConnectedAccount {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  app           String
+  accountLabel  String?
+  accessEnc     String?
+  refreshEnc    String?
+  expiresAt     DateTime?
+  scope         String?
+  createdAt     DateTime @default(now())
+  @@unique([userId, app])
+}
+
+model Folder {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name   String
+  zaps   Zap[]
+}
+
+model Zap {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId  String?
+  folder    Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  name      String?
+  active    Boolean  @default(true)
+  revision  Int      @default(1)
+  trigger   Trigger?
+  actions   Action[]
+  runs      ZapRun[]
+  webhookSecret WebhookSecret?
+  createdAt DateTime @default(now())
+  @@index([userId, active])
+}
+
+model Trigger {
+  id                 String   @id @default(cuid())
+  zapId              String   @unique
+  zap                Zap      @relation(fields: [zapId], references: [id], onDelete: Cascade)
+  availableTriggerId String
+  metadata           Json     @default("{}")
+  nextRunAt          DateTime?
+  lastCursor         String?
+  @@index([nextRunAt])
+}
+
+model Action {
+  id                String @id @default(cuid())
+  zapId             String
+  zap               Zap    @relation(fields: [zapId], references: [id], onDelete: Cascade)
+  availableActionId String
+  metadata          Json   @default("{}")
+  sortingOrder      Int
+  connectionId      String?
+  @@index([zapId, sortingOrder])
+}
+
+model AvailableTrigger {
+  id   String @id @default(cuid())
+  slug String @unique
+  name String
+}
+
+model AvailableAction {
+  id   String @id @default(cuid())
+  slug String @unique
+  name String
+}
+
+model ZapRun {
+  id          String       @id @default(cuid())
+  zapId       String
+  zap         Zap          @relation(fields: [zapId], references: [id], onDelete: Cascade)
+  zapRevision Int
+  status      ZapRunStatus @default(PENDING)
+  metadata    Json         @default("{}")
+  attempts    Int          @default(0)
+  error       String?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  resumeAt    DateTime?
+  createdAt   DateTime     @default(now())
+  outbox      ZapRunOutbox?
+  steps       ZapRunStep[]
+  @@index([zapId, createdAt])
+}
+
+model ZapRunStep {
+  id        String       @id @default(cuid())
+  zapRunId  String
+  zapRun    ZapRun       @relation(fields: [zapRunId], references: [id], onDelete: Cascade)
+  actionId  String
+  order     Int
+  status    ZapRunStatus @default(PENDING)
+  input     Json?
+  output    Json?
+  error     String?
+  latency   Int?
+  createdAt DateTime     @default(now())
+  @@unique([zapRunId, actionId])
+}
+
+model ZapRunOutbox {
+  id          String   @id @default(cuid())
+  zapRunId    String   @unique
+  zapRun      ZapRun   @relation(fields: [zapRunId], references: [id], onDelete: Cascade)
+  zapId       String
+  attempts    Int      @default(0)
+  nextRetryAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  @@index([nextRetryAt, createdAt])
+}
+
+model ActionExecution {
+  id       String @id @default(cuid())
+  zapRunId String
+  actionId String
+  @@unique([zapRunId, actionId])
+}
+
+model WebhookSecret {
+  id        String   @id @default(cuid())
+  zapId     String   @unique
+  zap       Zap      @relation(fields: [zapId], references: [id], onDelete: Cascade)
+  secret    String   @unique
+  createdAt DateTime @default(now())
+  rotatedAt DateTime?
+}
+
+model IdempotencyKey {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  zapId     String
+  zapRunId  String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([expiresAt])
+}
+
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}

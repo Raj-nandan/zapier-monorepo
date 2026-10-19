@@ -5,22 +5,36 @@
     "dev": "bun run --watch src/index.ts",
     "build": "tsc",
     "start": "bun run dist/index.js",
-    "lint": "eslint .",
-    "test": "bun test --pass-with-no-tests",
-    "db:migrate": "prisma migrate deploy",
-    "db:seed": "bun run ../db/prisma/seed.ts"
+    "lint": "eslint . --ext .ts",
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@repo/actions": "workspace:*",
     "@repo/config": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/logger": "workspace:*",
     "@repo/schemas": "workspace:*",
-    "@repo/logger": "workspace:*"
+    "@repo/triggers": "workspace:*",
+    "bcryptjs": "^3.0.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^10.1.0",
+    "redis": "^6.3.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^20.0.0",
     "@types/bun": "latest",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
     "typescript": "^5.5.0",
     "prisma": "^5.0.0",
     "eslint": "^8.57.0",
-    "@eslint/js": "^9.0.0"
+    "vitest": "^2.1.0"
   }
 }

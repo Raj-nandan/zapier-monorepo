@@ -5,16 +5,19 @@
   "type": "module",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "build": "turbo build",
-    "dev": "turbo dev",
-    "lint": "turbo lint",
-    "test": "turbo test",
-    "db:migrate": "turbo db:migrate",
-    "db:seed": "turbo db:seed"
+    "build": "bun --env-file=.env run turbo build",
+    "dev": "bun --env-file=.env run turbo dev",
+    "lint": "bun --env-file=.env run turbo lint",
+    "test": "bun --env-file=.env run turbo test --concurrency=1",
+    "db:migrate": "bun --env-file=.env run turbo db:migrate",
+    "db:seed": "bun --env-file=.env run turbo db:seed"
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
     "turbo": "^2.0.0",
     "typescript": "^5.5.0",
-    "eslint": "^8.57.0"
+    "vitest": "^2.1.0"
   }
 }
