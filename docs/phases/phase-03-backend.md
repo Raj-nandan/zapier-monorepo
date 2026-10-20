@@ -11,6 +11,19 @@ Goal: full async pipeline per `../DATAFLOW.md` §2-5. Largest phase.
 - `apps/worker/src/`: `index.ts` (group `main-worker`), `runner.ts` (revision-pinned fetch, decrypt/refresh connection, `ActionExecution` guard, serial run, filter-break, delay→`SUSPENDED`+resume, 10-30s timeout, write `ZapRunStep` per action, retry×5 → DLT + `FAILED`), `parser.ts` (bounded `{{}}`, depth 5, 100 subs, 10KB) + `lib/ssrf.ts`. No worker sleep. `GET /healthz` + `GET /readyz` (DB+Kafka) per TRD §51 (port 3004).
 - `apps/scheduler/src/`: `index.ts` + `jobs/cron.ts, polling.ts` (every 30s UTC, skip inactive Zaps, durable cursor, `tx(ZapRun+Outbox+nextRunAt/cursor)` + delay resume + connection refresh). 1 replica + liveness + missed-tick alert. `GET /healthz` + `GET /readyz` (DB+Kafka) per TRD §51 (port 3005).
 
+### Phase 04 frontend contract deltas (backend work)
+
+The Phase 04 frontend planning docs are authoritative for frontend-facing contracts. Implement in the backend (see `../TRD.md` §5.1):
+
+- `GET /api/v1/csrf` issues a token; `X-CSRF-Token` required on all POST/PUT/PATCH/DELETE (single shared verifier).
+- `401 { code: "REAUTH_REQUIRED" }` on rotate secret, delete account, export, disconnect.
+- OAuth `GET /api/v1/auth/google|github?next=<relative>` (backend re-validates `safeNext()` allowlist) and failure redirect to `WEB_URL/auth/callback?error=<access_denied|provider_error|state_mismatch>`.
+- `GET /api/v1/runs?search&status&cursor&limit≤100` global history; `GET /api/v1/runs/:id` includes `zapName`.
+- `GET /api/v1/dashboard?window=7d|30d|90d` with `runsPerDay`, `failedRuns`, `suspendedRuns`; `GET /api/v1/analytics` returns the same payload.
+- `GET /api/v1/zap?search&folderId&active&cursor&limit≤100`.
+- `GET /api/v1/zap/:id` omits the webhook secret (secret returned once on create/rotate only).
+- Password `max(128)` on signup/reset; `POST /api/v1/zap` accepts `name`; `Idempotency-Key` honored on API mutations.
+
 ## Env
 `JWT_PASSWORD, TOKEN_ENC_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GMAIL_APP_ID, GMAIL_APP_SECRET, GITHUB_APP_ID, GITHUB_APP_SECRET, OAUTH_REDIRECT_URL, WEB_URL, SMTP_*, SLACK_*, DISCORD_*, REDIS_URL, KAFKA_BROKERS, TOPIC`.
 
@@ -19,6 +32,8 @@ Email: bcrypt hash, generic 401 (no enumeration), lockout after 5 fails, access 
 
 ## Tests
 HMAC verify (size/timestamp/replay), parser bounds + bad-{{ref}} rejected, SSRF block, connections tokens never leak + refresh, test-trigger samples (no run), replay clones with new key, steps written, revision-pin, IDOR 403 (incl. connections/runs), toggle skips scheduler, folders/search scoped, export/delete cascades, k6 100rps lag<5s, kill-worker redelivery deduped.
+
+Phase 04 deltas tests: CSRF token issued + rejected when missing, `REAUTH_REQUIRED` returned for sensitive actions, OAuth `next` validated + failure error codes, global runs list scoped + paginated, dashboard analytics windowed + per-day series, zap list `folderId`/`active`/cursor filters, secret absent from `GET /zap/:id`, run detail returns `zapName`, password >128 rejected, `POST /zap` name round-trips, `Idempotency-Key` repeat returns original result.
 
 ## Exit gate
 `docker-compose up` → signup → create Zap → curl webhook → email/slack arrives; run history shows SUCCESS/FAILED with latency.

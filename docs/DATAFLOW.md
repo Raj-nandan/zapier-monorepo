@@ -62,8 +62,11 @@ Replay: POST /runs/:id/replay clones metadata+zapRevision with fresh key → new
 ## 6. Observe & Debug
 ```
 GET /api/v1/zap/:id/runs?search&status&cursor&limit≤100 → [{id,status,latency,error,createdAt}]
-GET /api/v1/runs/:id → {run, steps[]}
+GET /api/v1/runs?search&status&cursor&limit≤100 → global history across the user's Zaps, with nextCursor
+GET /api/v1/runs/:id → {run, zapName, steps[]}
 POST /api/v1/runs/:id/replay → {newZapRunId}
+GET /api/v1/dashboard?window=7d|30d|90d → {activeZaps,totalZaps,runCounts,totalRuns,averageLatencyMs,runsPerDay,failedRuns,suspendedRuns,zaps,recentRuns}
+GET /api/v1/analytics → same payload as dashboard for the /analytics page
 Grafana: kafka_lag{topic}, zap_runs_total{status}, action_duration{action}, scheduler_missed_ticks
 Trace: logs with traceId=zapRunId from hooks→processor→worker in Loki.
 Retention: runs+steps kept 90d, then cascade delete.

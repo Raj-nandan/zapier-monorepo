@@ -170,7 +170,7 @@ export function userRouter(deps: UserRouteDeps): Router {
           data: { userId: user.id, tokenHash, expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
         });
         try {
-          await mailer({ to: email, subject: "Reset your password", text: `Use this token to reset your password: ${token}` });
+          await mailer({ to: email, subject: "Reset your password", text: resetLink(token) });
         } catch (error) {
           logger.error({ err: (error as Error).message }, "reset email delivery failed");
         }
