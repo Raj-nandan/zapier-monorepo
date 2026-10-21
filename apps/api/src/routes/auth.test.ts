@@ -92,11 +92,11 @@ describe("authorize redirect", () => {
 });
 
 describe("callback failure modes fail closed", () => {
-  it("rejects an unknown state with 401", async () => {
+  it("redirects unknown state to auth/callback with state_mismatch", async () => {
     const app = build(fakeFetch());
     const response = await request(app).get("/api/v1/auth/callback/google?code=abc&state=never-issued");
-    expect(response.status).toBe(401);
-    expect(response.body.error).toBe("invalid or expired state");
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe("http://localhost:3000/auth/callback?error=state_mismatch");
   });
 
   it("rejects a state that was already used", async () => {
@@ -105,36 +105,40 @@ describe("callback failure modes fail closed", () => {
     const first = await request(app).get(`/api/v1/auth/callback/google?code=abc&state=${state}`);
     expect(first.status).toBe(302);
     const replay = await request(app).get(`/api/v1/auth/callback/google?code=abc&state=${state}`);
-    expect(replay.status).toBe(401);
+    expect(replay.status).toBe(302);
+    expect(replay.headers.location).toBe("http://localhost:3000/auth/callback?error=state_mismatch");
   });
 
   it("rejects a state issued for the other provider", async () => {
     const app = build(fakeFetch());
     const { state } = await startFlow(app, "google");
     const response = await request(app).get(`/api/v1/auth/callback/github?code=abc&state=${state}`);
-    expect(response.status).toBe(401);
-    expect(response.body.error).toBe("state provider mismatch");
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe("http://localhost:3000/auth/callback?error=state_mismatch");
   });
 
   it("rejects a callback without code", async () => {
     const app = build(fakeFetch());
     const { state } = await startFlow(app, "google");
     const response = await request(app).get(`/api/v1/auth/callback/google?state=${state}`);
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe("http://localhost:3000/auth/callback?error=provider_error");
   });
 
   it("rejects an unverified google email", async () => {
     const app = build(fakeFetch({ profile: { sub: "g1", email: "unverified@example.com", email_verified: false } }));
     const { state } = await startFlow(app, "google");
     const response = await request(app).get(`/api/v1/auth/callback/google?code=abc&state=${state}`);
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe("http://localhost:3000/auth/callback?error=provider_error");
   });
 
   it("rejects when the token exchange fails", async () => {
     const app = build(fakeFetch({ token: { error: "invalid_grant" } as Record<string, unknown> }));
     const { state } = await startFlow(app, "google");
     const response = await request(app).get(`/api/v1/auth/callback/google?code=abc&state=${state}`);
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe("http://localhost:3000/auth/callback?error=provider_error");
   });
 });
 

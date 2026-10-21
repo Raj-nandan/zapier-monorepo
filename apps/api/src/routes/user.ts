@@ -23,7 +23,7 @@ import {
   setSessionCookies,
 } from "../lib/session";
 import { extractRefreshCookie, revokeJti, requireAuth } from "../middleware/auth";
-import { byIp, rateLimit } from "../middleware/rateLimit";
+import { checkReauth, sendReauthRequired } from "../lib/reauth";import { byIp, rateLimit } from "../middleware/rateLimit";
 
 export const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 export const GENERIC_AUTH_ERROR = "invalid credentials";
@@ -224,6 +224,11 @@ export function userRouter(deps: UserRouteDeps): Router {
 
   router.get("/export", requireAuth(deps.secret), async (req: Request, res: Response) => {
     const userId = req.auth!.userId;
+    const reauth = await checkReauth(req, userId);
+    if (!reauth.ok) {
+      sendReauthRequired(res);
+      return;
+    }
     const user = await prisma.user.findUnique({ where: { id: userId } });
     const [zaps, folders, connections, runs, resets] = await Promise.all([
       prisma.zap.findMany({ where: { userId } }),
@@ -250,7 +255,13 @@ export function userRouter(deps: UserRouteDeps): Router {
   });
 
   router.delete("/", requireAuth(deps.secret), async (req: Request, res: Response) => {
-    await prisma.user.delete({ where: { id: req.auth!.userId } });
+    const userId = req.auth!.userId;
+    const reauth = await checkReauth(req, userId);
+    if (!reauth.ok) {
+      sendReauthRequired(res);
+      return;
+    }
+    await prisma.user.delete({ where: { id: userId } });
     clearSessionCookies(res);
     res.json({ ok: true });
   });

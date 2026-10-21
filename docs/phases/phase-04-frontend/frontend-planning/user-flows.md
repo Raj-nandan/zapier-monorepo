@@ -1,8 +1,8 @@
 # Zapier-Monorepo Frontend — User Flows
 
 > **Document:** `docs/phase-04-frontend-planning/user-flows.md`
-> **Status:** DRAFT v2 — aligned to `design-system.md` v2, security-hardened
-> **Purpose:** Step-by-step flows bound to backend contracts (`PRD.md` F-1–F-14, `DATAFLOW.md`). Frontend never decides auth, Zap config, or run status — it renders backend verdicts. v2 adds route protection, secure redirects, CSRF/idempotency, secret handling, session expiry, and step-up flows. Security IDs refer to `requirements.md` §5.
+> **Status:** DRAFT v3 — aligned to `design-system.md` v3 (Canva design file), security-hardened
+> **Purpose:** Step-by-step flows bound to backend contracts (`PRD.md` F-1–F-14, `DATAFLOW.md`). Frontend never decides auth, Zap config, or run status — it renders backend verdicts. v2 added route protection, secure redirects, CSRF/idempotency, secret handling, session expiry, and step-up flows. v3 aligns the flows to the drawn design: vertical builder canvas, inline run-detail panel, and the mobile behaviours from the `07 Mobile + states` canvas. Security IDs refer to `requirements.md` §5; scope decisions to §8.
 
 ## Authority Table
 
@@ -11,14 +11,14 @@
 | Navigation, form animation, optimistic toggle visuals (rolled back on error) | Session (cookies), signup/signin/forgot/reset verdicts, session expiry, token rotation |
 | Redirect target validation (`safeNext()`) as a UX/safety layer | Final redirect validation for OAuth `next`, authorization on every request |
 | Builder canvas layout, sample display, mapping dropdowns | `availableTriggers/Actions`, `fields[]`, `test-trigger` samples, `{{ref}}` validation |
-| Table filters/pagination UI, drawer open/close | Runs, steps, counts, `If-Match` revision conflicts (409) |
+| Table filters/pagination UI, run-detail panel open/close | Runs, steps, counts, `If-Match` revision conflicts (409) |
 | Copy wording from `content.md`, loading/empty/error shells | `ZapRun/Step` status, Replay outcome, rate-limit verdicts |
 | Attaching CSRF header and `Idempotency-Key`; escaping all rendered text | Issuing/verifying CSRF, idempotency, rate limits, re-auth (`REAUTH_REQUIRED`) |
 
 ## Backend Contract Assumptions (verify against `TRD.md` before build)
 
 1. Session = `httpOnly; Secure; SameSite` cookies; access token short-lived with server-side rotation; logout denylists `jti`.
-2. A CSRF token is obtainable (e.g. `GET /api/v1/user/` response header or `GET /api/v1/csrf`) and required via `X-CSRF-Token` on mutations. If the backend instead relies on `SameSite=Strict` + `Origin` verification, document it here and keep the header wiring behind a single `apiFetch()`.
+2. A CSRF token is issued by `GET /api/v1/csrf` (signed, 1h TTL, returned as `{ csrfToken }` and set as the readable `csrf_token` cookie) and required via `X-CSRF-Token` on every mutation (POST/PUT/PATCH/DELETE). Verification is double-submit (cookie must equal header and verify as a signed token). Anonymous requests without the cookie are allowed through; all authenticated state-changing requests are enforced. Keep the wiring behind a single `apiFetch()`.
 3. API reachable same-origin via `/api/v1/*` proxy.
 4. Sensitive endpoints may answer `401` with code `REAUTH_REQUIRED` (step-up) — the UI shows the re-auth dialog rather than redirecting.
 5. OAuth start accepts only a relative `next`; backend uses `state` + PKCE and returns to `/auth/callback` on failure.
@@ -88,14 +88,16 @@ Security checkpoints: SEC-AUTH-5/6, SEC-SECRET-3, SEC-XSS-5, SEC-CSRF-1.
 → add actions → map fields → Publish → /zap/[id] (secret once)
 ```
 
-1. Server guard passes (Flow 0). Builder loads `trigger/available` + `action/available`; unavailable entries disabled with reason.
-2. Configure step → Test trigger (`POST /zap/test-trigger`, 10/min) shows 3 samples (rendered as text); no `ZapRun` is created.
-3. Each action maps fields via `{{step.output.*}}` dropdowns (tokens shown as text chips, never evaluated); app actions require a connected Gmail/GitHub account (prompt in builder if missing).
-4. HTTP-request action URLs must be `http(s)` (client check; server SSRF protection is authoritative). Displayed as text.
-5. Publish: `POST /api/v1/zap` with CSRF + fresh `Idempotency-Key` (Zod + `{{ref}}` check server-side). Button locks to `Publishing…`.
-6. Success shows webhook URL + **secret once** in an in-memory dialog (masked, Reveal, Copy → `Copied` toast); closing the dialog, navigating, or hiding the tab clears it (SEC-SECRET-1/2). Then → `/zap/[id]`.
-7. 20/day limit shows the limit copy. Validation errors pin to the offending step. Network failure after submit → re-check via `GET /zap` before retrying with the same `Idempotency-Key`.
-8. Unsaved builder state exists only in memory; leaving prompts `Leave without publishing?` and nothing is written to storage.
+1. Server guard passes (Flow 0). Builder loads `trigger/available` + `action/available`; unavailable entries disabled with reason. The library (260px) lists `Triggers` and `Actions` groups; the search field filters them.
+2. The canvas is a **vertical** stack of node cards (300px wide, connected by vertical rules with a 22px `+` insert handle between steps). The `+` handle opens the library and inserts the chosen step **at that position**; the list order sent to the backend is `sortingOrder`. Dragging pans the canvas only — it never reorders steps.
+3. Configure step → **Test trigger** (`POST /zap/test-trigger`, 10/min) shows 3 samples (rendered as text) in the inspector `Test` tab; no `ZapRun` is created. The inspector has three tabs: `Setup`, `Test`, `Settings`.
+4. Each action maps fields via `{{step.output.*}}` dropdowns (tokens shown as text chips, never evaluated); app actions require a connected Gmail/GitHub account (prompt in builder if missing).
+5. HTTP-request action URLs must be `http(s)` (client check; server SSRF protection is authoritative). Displayed as text.
+6. Publish: `POST /api/v1/zap` with CSRF + fresh `Idempotency-Key` (Zod + `{{ref}}` check server-side). Button locks to `Publishing…`; `⌘↵` triggers the same submit.
+7. Success shows webhook URL + **secret once** in an in-memory dialog (masked, Reveal, Copy → `Copied` toast); closing the dialog, navigating, or hiding the tab clears it (SEC-SECRET-1/2). Then → `/zap/[id]`.
+8. `/zap/[id]` is the **same builder in edit mode**, bound to `GET /zap/:id`. The `Draft` badge and `Saved · {time}` indicator reflect real publish state and save time. The inspector `Settings` tab carries the workflow summary — active toggle, webhook URL, secret (rotate) — and a link into History filtered to this Zap (`requirements.md` §8.3 A1–A2). Saves use `If-Match: revision`; 409 → `This automation changed elsewhere. Reload to get the latest revision.`
+9. 20/day limit shows the limit copy. Validation errors pin to the offending step. Network failure after submit → re-check via `GET /zap` before retrying with the same `Idempotency-Key`.
+10. Unsaved builder state exists only in memory; leaving prompts `Leave without publishing?` and nothing is written to storage.
 
 Security checkpoints: SEC-CSRF-1/3, SEC-XSS-1/6, SEC-SECRET-1/2, SEC-RED-6.
 
@@ -121,14 +123,15 @@ From `/zap/[id]`: `Test` → `POST /zap/:id/test` (CSRF, `Idempotency-Key`, rate
 ## Flow 6 — Failure Inspect → Retry (Replay)
 
 ```text
-/history → FAILED row → open run drawer → find failed step (input/output/error)
-→ Replay → new run → SUCCESS
+/history → FAILED row → open run-detail panel → find failed step (input/output/error)
+→ Retry run → new run → SUCCESS
 ```
 
-1. The 480px drawer shows each action’s status, truncated input/output, error, latency in a step timeline; failed step expands with the human sentence and `Retry`.
-2. Replay (`POST /runs/:id/replay`, CSRF, fresh `Idempotency-Key`, 10/day/run) clones `metadata + zapRevision`; the new `zapRunId` is linked and highlighted.
+1. Selecting a run opens the **480px inline run-detail panel** beside the table (not an overlay; on narrow screens it becomes a full-screen sheet). It shows each action's status, truncated input/output, error and latency in a step timeline; the failed step expands with the human sentence plus `Retry from this step` and `Check connection`.
+2. Replay (`POST /runs/:id/replay`, CSRF, fresh `Idempotency-Key`, 10/day/run) clones `metadata + zapRevision`; the new `zapRunId` is linked and highlighted (selected row: `flame-50` background + `inset 2px 0 0 #F2540B`).
 3. DLT/poison runs are replayable the same way; 429 shows the daily-replay copy; the button never auto-retries.
 4. Error text is the backend `error` string rendered as plain text only (SEC-XSS-1).
+5. `Copy ID` copies the run ID to the clipboard and shows the `Copied` toast.
 
 ## Flow 7 — Sign Out
 
@@ -168,6 +171,23 @@ Action → confirm dialog → API call (CSRF) → 200 | 401 REAUTH_REQUIRED → 
 4. **Export my data:** `GET /user/export` streamed to a Blob URL, downloaded, URL revoked; success toast `Export ready.`
 5. **Re-auth dialog:** password (or provider re-auth for OAuth-only accounts); on success the original action is retried once automatically; failure leaves the dialog open with generic copy and the 429 rules.
 
+## Flow 10 — Mobile / Responsive Behaviour
+
+The `07 Mobile + states` canvas defines the small-screen product; these are not "degraded desktop", they are the designed mobile experience.
+
+```text
+≤lg  → sidebar becomes a sheet; ≥lg → fixed 248px sidebar (64px rail at md)
+390px → 56px header + bottom tab bar (Dashboard, Create automation, History, Settings)
+```
+
+1. **Dashboard (390px):** 56px white header (logo + page title + 44px search button); stat cards in a 2-column grid; the automations table becomes **stacked cards** (name, meta, status badge) — no horizontal scrolling; the `Automations` section header keeps the `View history` link.
+2. **Bottom tab bar (64px):** Dashboard, Create automation, History, Settings. It reflects the same frozen routes as the sidebar; it never introduces a route.
+3. **History:** the table scrolls horizontally with the first column sticky; the run-detail panel becomes a full-screen sheet (design-system §9).
+4. **Builder:** canvas is full-bleed; the step library and the inspector open as bottom sheets; the `+` insert handle and node cards keep their 300px measure (canvas pans vertically).
+5. **Landing (390px):** hero H1 40px, body 15px, CTAs stacked full-width (accent first, then secondary).
+6. **Motion:** every animation is disabled under `prefers-reduced-motion: reduce` — marquee static, beam hidden, skeleton shimmer off.
+7. All touch targets are ≥44px; mobile buttons are 44px tall, icon buttons 44×44.
+
 ## Per-Flow Security Gate Summary
 
 | Flow | Must pass |
@@ -179,8 +199,9 @@ Action → confirm dialog → API call (CSRF) → 200 | 401 REAUTH_REQUIRED → 
 | 7 | All caches cleared; other tabs signed out; back button shows nothing |
 | 8 | Single redirect; REAUTH handled; no leaks in URL |
 | 9 | Confirm + (re-auth) + typed confirmation for delete; blob revoked |
+| 10 | No new routes on mobile; bottom tab bar maps to frozen routes only; touch targets ≥44px; `prefers-reduced-motion` honoured |
 
 ---
 
-**Status:** DRAFT v2
-**Freeze rule:** Colors, type, spacing, radii, depth, and motion come from `design-system.md` v2 tokens only. No new visual language without a PRD update.
+**Status:** DRAFT v3
+**Freeze rule:** Layout, component anatomy, screen copy and motion come from `design-system.md` v3 (the Canva design file); scope comes from `requirements.md` §8. Security rules here may be tightened but not relaxed without a PRD update. No new visual language without a PR to `design-system.md`.

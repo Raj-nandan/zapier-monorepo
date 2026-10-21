@@ -13,6 +13,7 @@ import {
   randomValue,
 } from "../lib/connections";
 import { currentUserId, requireAuth } from "../middleware/auth";
+import { checkReauth, sendReauthRequired } from "../lib/reauth";
 import type { ConnectionApp } from "@repo/schemas";
 
 export interface ConnectionsRouteDeps {
@@ -141,9 +142,15 @@ async function handleCallback(
   });
 
   router.delete("/:id", requireAuth(deps.secret), async (req: Request, res: Response) => {
+    const userId = currentUserId(req);
+    const reauth = await checkReauth(req, userId);
+    if (!reauth.ok) {
+      sendReauthRequired(res);
+      return;
+    }
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const deleted = await prisma.connectedAccount.deleteMany({
-      where: { id, userId: currentUserId(req) },
+      where: { id, userId },
     });
     if (deleted.count === 0) {
       res.status(404).json({ error: "not found" });

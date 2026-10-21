@@ -14,6 +14,8 @@ import { runsRouter } from "./routes/runs";
 import { dashboardRouter } from "./routes/dashboard";
 import { authRouter } from "./routes/auth";
 import { connectionsRouter } from "./routes/connections";
+import { csrfRouter } from "./routes/csrf";
+import { csrfProtect } from "./lib/csrf";
 
 export const API_PORT = 3001;
 export const MAX_BODY_BYTES = "1mb";
@@ -42,6 +44,7 @@ export function createApp(): Express {
   app.use(requestId());
   app.use(cookieParser());
   app.use(express.json({ limit: MAX_BODY_BYTES }));
+  app.use(csrfProtect(env.JWT_PASSWORD));
 
   app.get("/healthz", (_req, res) => {
     res.json({ status: "ok" });
@@ -54,9 +57,10 @@ export function createApp(): Express {
   app.use("/api/v1/action", actionRouter({ secret: env.JWT_PASSWORD }));
   app.use("/api/v1/folder", folderRouter({ secret: env.JWT_PASSWORD }));
   app.use("/api/v1/auth", authRouter({ secret: env.JWT_PASSWORD }));
-  app.use("/api/v1/connections", connectionsRouter({ secret: env.JWT_PASSWORD }));
+  app.use("/api/v1/csrf", csrfRouter({ secret: env.JWT_PASSWORD }));  app.use("/api/v1/connections", connectionsRouter({ secret: env.JWT_PASSWORD }));
   app.use("/api/v1", runsRouter({ secret: env.JWT_PASSWORD }));
   app.use("/api/v1/dashboard", dashboardRouter({ secret: env.JWT_PASSWORD }));
+  app.use("/api/v1/analytics", dashboardRouter({ secret: env.JWT_PASSWORD }));
 
   app.get("/readyz", async (_req, res) => {
     let database = false;

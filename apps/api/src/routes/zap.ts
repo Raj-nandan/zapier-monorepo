@@ -6,8 +6,7 @@ import { zapCreateSchema, zapUpdateSchema } from "@repo/schemas";
 import { registry as triggerRegistry, getHandler as getTriggerHandler } from "@repo/triggers";
 import { registry as actionRegistry, getHandler as getActionHandler } from "@repo/actions";
 import { currentUserId, requireAuth } from "../middleware/auth";
-import { byUser, rateLimit } from "../middleware/rateLimit";
-import { routeParam } from "./folder";
+import { checkReauth, sendReauthRequired } from "../lib/reauth";import { byUser, rateLimit } from "../middleware/rateLimit";import { routeParam } from "./folder";
 import { TEST_RUN_LIMIT, TEST_RUN_WINDOW_SECONDS } from "../idempotency";
 
 export const ZAP_CREATE_LIMIT = 20;
@@ -36,6 +35,25 @@ export function webhookUrl(zapId: string): string {
 }
 
 export async function createZap(req: Request, res: Response): Promise<void> {
+  const idempotencyKey = typeof req.header("idempotency-key") === "string" ? req.header("idempotency-key") : null;
+
+  if (idempotencyKey) {
+    const existing = await prisma.idempotencyKey.findUnique({ where: { key: idempotencyKey } });
+    if (existing?.zapId) {
+      const zap = await prisma.zap.findUnique({ where: { id: existing.zapId } });
+      if (zap) {
+        const secret = await prisma.webhookSecret.findUnique({ where: { zapId: zap.id } });
+        res.status(201).json({
+          zapId: zap.id,
+          webhookUrl: webhookUrl(zap.id),
+          secret: secret?.secret ?? null,
+          revision: zap.revision,
+        });
+        return;
+      }
+    }
+  }
+
   const parsed = zapCreateSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "invalid request" });
@@ -79,6 +97,7 @@ export async function createZap(req: Request, res: Response): Promise<void> {
     const created = await tx.zap.create({
       data: {
         userId: currentUserId(req),
+        name: input.name ?? null,
         folderId: input.folderId ?? null,
         active: true,
         revision: 1,
@@ -112,6 +131,15 @@ export async function createZap(req: Request, res: Response): Promise<void> {
     secret,
     revision: zap.revision,
   });
+
+  if (idempotencyKey) {
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    await prisma.idempotencyKey.upsert({
+      where: { key: idempotencyKey },
+      update: { zapId: zap.id },
+      create: { key: idempotencyKey, zapId: zap.id, expiresAt },
+    });
+  }
 }
 
 export function zapRouter(deps: ZapRouteDeps): Router {
@@ -126,14 +154,33 @@ export function zapRouter(deps: ZapRouteDeps): Router {
 
   router.get("/", async (req: Request, res: Response) => {
     const search = typeof req.query.search === "string" ? req.query.search : undefined;
-    const zaps = await prisma.zap.findMany({
+    const folderId = typeof req.query.folderId === "string" ? req.query.folderId : undefined;
+    const activeRaw = req.query.active;
+    const active = activeRaw === "true" ? true : activeRaw === "false" ? false : undefined;
+    const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+    const limitRaw = req.query.limit;
+    const limit = Math.min(100, Math.max(1, Number(limitRaw) || 20));
+
+    const rows = await prisma.zap.findMany({
       where: {
         userId: currentUserId(req),
         ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
+        ...(folderId ? { folderId } : {}),
+        ...(active !== undefined ? { active } : {}),
+        ...(cursor ? { id: { lt: cursor } } : {}),
       },
       orderBy: { createdAt: "desc" },
+      take: limit + 1,
     });
-    res.json({ zaps });
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+
+    res.json({
+      zaps: page,
+      nextCursor: hasMore ? page.at(-1)!.id : null,
+      limit,
+    });
   });
 
   router.get("/:id", async (req: Request, res: Response) => {
@@ -152,7 +199,6 @@ export function zapRouter(deps: ZapRouteDeps): Router {
       revision: zap.revision,
       folderId: zap.folderId,
       webhookUrl: webhookUrl(zap.id),
-      secret: zap.webhookSecret?.secret ?? null,
       trigger: zap.trigger,
       actions: zap.actions,
     });
@@ -263,26 +309,50 @@ export function zapRouter(deps: ZapRouteDeps): Router {
         sample.sample = null;
       }
 
-      const run = await prisma.$transaction(async (tx) => {
-        const created = await tx.zapRun.create({
-          data: {
-            zapId: zap.id,
-            zapRevision: zap.revision,
-            status: "PENDING",
-            metadata: JSON.parse(JSON.stringify(sample)),
-          },
-        });
-        await tx.zapRunOutbox.create({ data: { zapRunId: created.id, zapId: zap.id } });
-        return created;
-      });
+    const idempotencyKey = typeof req.header("idempotency-key") === "string" ? req.header("idempotency-key") : null;
+    if (idempotencyKey) {
+      const existing = await prisma.idempotencyKey.findUnique({ where: { key: idempotencyKey } });
+      if (existing?.zapRunId) {
+        res.status(201).json({ zapRunId: existing.zapRunId });
+        return;
+      }
+    }
 
-      res.status(201).json({ zapRunId: run.id });
-    },
-  );
+    const run = await prisma.$transaction(async (tx) => {
+      const created = await tx.zapRun.create({
+        data: {
+          zapId: zap.id,
+          zapRevision: zap.revision,
+          status: "PENDING",
+          metadata: JSON.parse(JSON.stringify(sample)),
+        },
+      });
+      await tx.zapRunOutbox.create({ data: { zapRunId: created.id, zapId: zap.id } });
+      return created;
+    });
+
+    if (idempotencyKey) {
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await prisma.idempotencyKey.upsert({
+        where: { key: idempotencyKey },
+        update: { zapRunId: run.id, zapId: zap.id },
+        create: { key: idempotencyKey, zapId: zap.id, zapRunId: run.id, expiresAt },
+      });
+    }
+
+    res.status(201).json({ zapRunId: run.id });
+  },
+);
 
   router.post("/:id/secret/rotate", async (req: Request, res: Response) => {
+    const userId = currentUserId(req);
+    const reauth = await checkReauth(req, userId);
+    if (!reauth.ok) {
+      sendReauthRequired(res);
+      return;
+    }
     const zap = await prisma.zap.findFirst({
-      where: { id: routeParam(req, "id"), userId: currentUserId(req) },
+      where: { id: routeParam(req, "id"), userId },
     });
     if (!zap) {
       res.status(404).json({ error: "not found" });

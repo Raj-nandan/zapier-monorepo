@@ -1,9 +1,9 @@
 # Zapier-Monorepo Frontend — V1 Requirements
 
 > **Document:** `docs/phase-04-frontend-planning/requirements.md`
-> **Status:** DRAFT v2 — aligned to `design-system.md` v2, security-hardened
+> **Status:** DRAFT v3 — aligned to `design-system.md` v3 (transcribed from the Canva design file `Zapier-Monorepo Web App Design v2.html`), security-hardened
 > **Purpose:** Define exactly what the V1 frontend must provide, what is intentionally outside V1, and the security baseline every screen must meet. Product truth lives in `docs/BRD.md`, `docs/PRD.md`, `docs/TRD.md`, `docs/DATAFLOW.md`. This file must not contradict them.
-> **v2 changes:** (1) design-system v2 reconciliation (§8), (2) new Security Requirements (§5) and threat model (§6), (3) hardened Must/Must-not, (4) security gates in Definition of Done (§10).
+> **v3 changes:** (1) the Canva design file is now the source of truth for the visual layer — §8 becomes a two-authority reconciliation table (design = craft, PRD/BRD = scope), (2) new §8.2 additions the design requires but does not draw (workflow summary in the builder, `Analytics` nav item), (3) design-parity gates in §10, (4) mobile behaviour per the `07 Mobile + states` canvas, (5) §2/§3/§7 updated for the builder-shell edit mode and the inline run-detail panel.
 
 ## 1. Frontend Goal
 
@@ -14,7 +14,7 @@ Signup/Login → Dashboard → Create automation (trigger → actions → Publis
 → Fire webhook / schedule runs → History → Inspect failure → Retry
 ```
 
-The frontend must feel like a shipped SaaS product (design-system v2: warm paper/ink, one flame accent, shadcn-style components), not a collection of developer pages. It reuses the working legacy flows (landing, auth split layout, dashboard table, zap-create builder), wires every mock to real backend data, and **fails closed**: when auth state is unknown or a check errors, the user is treated as signed out.
+The frontend must feel like a shipped SaaS product (design-system v3: warm paper/ink, one flame accent, shadcn-style components, transcribed exactly from the Canva design file), not a collection of developer pages. It reuses the working legacy flows (landing, auth split layout, dashboard table, zap-create builder), wires every mock to real backend data, and **fails closed**: when auth state is unknown or a check errors, the user is treated as signed out.
 
 ## 2. The Three Experiences
 
@@ -27,21 +27,25 @@ Pick trigger → Configure (+ Test trigger samples) → Add action(s)
 → Map fields → Review → Publish
 ```
 
-Layout (design-system §5): step library left, dotted canvas center, 320px inspector right; top bar with editable name, saved indicator, Test, **Publish**. Edit (`/zap/[id]`) is the same builder bound to `GET /zap/:id`, saving with `If-Match: revision` (409 → reload prompt). In-flight runs stay pinned to the old revision — the UI must say so after Publish.
+Layout (design-system §6.4): step library left (260px), dotted canvas center, 320px inspector right; top bar with editable name, saved indicator, Test, **Publish**. The canvas is a **vertical** stack of 300px node cards joined by vertical 1.5px connectors with a 22px `+` insert handle. Edit (`/zap/[id]`) is the same builder shell bound to `GET /zap/:id`, saving with `If-Match: revision` (409 → reload prompt). In-flight runs stay pinned to the old revision — the UI must say so after Publish.
 
 ### Experience B — Workflow Detail (`/zap/[id]`)
 
-One page answers: what does this automation do, is it on, and did it work lately. It shows trigger + ordered actions (read from backend, never static), active toggle (`PATCH /zap/:id/active`), webhook URL + secret (secret shown once, rotate button), recent runs for this Zap, and entry points to History detail and Replay.
+One route, one screen: the **builder shell in edit mode**. The design file has no separate detail canvas, and `/zap/[id]` is the only frozen route that can host the editor (there is no `/zap/[id]/edit`), so detail and edit are the same screen. It answers: what does this automation do (the canvas node stack — trigger + ordered actions read from the backend, never static), is it on (active toggle), and how do I reach its runs (History filtered to this Zap).
+
+The PRD-required summary capabilities that the design does not draw live in surfaces the design **already defines**: the active toggle, webhook URL, secret (shown once) and rotate action sit in the inspector **Settings** tab (design-system §6.4), and recent runs are reached through History pre-filtered to this Zap (`GET /zap/:id/runs`; PRD F-7, F-12). See `requirements.md` §8.3 (additions A1–A2) — this is the only sanctioned addition to the drawn design.
 
 ### Experience C — History / Ops (`/history` + run detail)
 
-The operations surface. Dense table of runs (`status`, Zap name, latency, error, time), filters (`search`, `status`, Zap), cursor pagination, and a 480px run-detail drawer with step timeline (`ZapRunStep[]`: input/output ≤100KB, latency) plus Replay (`POST /runs/:id/replay`) for FAILED/DLT runs. Runs are retained 90 days — the UI states this where history could look empty.
+The operations surface. Dense table of runs (`status`, Zap name, latency, error, time), filters (`search`, `status`, Zap), cursor pagination, and a **480px inline run-detail panel** beside the table — not an overlay drawer; on narrow screens it becomes a full-screen sheet — with step timeline (`ZapRunStep[]`: input/output ≤100KB, latency) plus Replay (`POST /runs/:id/replay`) for FAILED/DLT runs. Runs are retained 90 days — the UI states this where history could look empty.
 
 ## 3. Must / Must-Not
 
 **Must:**
 
 - Wire every page to the contracts in `pages.md`; no static mock rows, dates, or user data.
+- Implement the UI by **transcribing** `design-system.md` v3 — the same tokens, component anatomy, layout, copy and states as the design file. No approximation, no paraphrasing of the design.
+- Stay inside the design's component vocabulary (shadcn/Radix primitives + Lucide icons + the tokens in design-system §2). A new visual pattern needs a PR to `design-system.md` first.
 - Send cookies on every API call (`credentials: include`); never store tokens in JavaScript (memory, `localStorage`, `sessionStorage`, IndexedDB, URL).
 - Treat backend as authority for auth state, Zap config, `ZapRun`/`ZapRunStep` status, and analytics (§4).
 - Show loading, empty, error states on every data screen (§7).
@@ -57,7 +61,9 @@ The operations surface. Dense table of runs (`status`, Zap name, latency, error,
 - Never rename working labels or reorder the proven signup → dashboard → create flow.
 - Never display stack traces, SQL/DB errors, raw webhook secrets (except once at creation or rotation), connection tokens, or reset tokens.
 - Never mark auth/payment-like state client-side; never fake a run as SUCCESS before the backend says so.
-- No pricing or billing logic or UI anywhere (v2 design elements that imply billing are dropped — §8).
+- No pricing or billing logic or UI anywhere (design elements that imply billing are dropped — §8).
+- Never render an element the PRD excludes (pricing links, Templates route/section, plan or usage meter, workspace switcher) — not even as a disabled placeholder.
+- Never hardcode the design file's illustration values (`Acme Ops`, `Maya Rao`, `hooks.zapflow.app/catch/8f2a91`, `1,284 / 2,000`, `run_8f2a91`, `2 / 4`) — they are samples, not data.
 - Never use `dangerouslySetInnerHTML`, `eval`, `new Function`, `document.write`, `innerHTML`, or inline event-handler strings.
 - Never trust a URL parameter for authorization, redirection or rendering without validation.
 - Never load third-party scripts on `/login`, `/signup`, `/forgot`, `/reset`, `/auth/callback`, `/settings`, or any authenticated route.
@@ -202,42 +208,109 @@ Every item is testable. IDs are referenced from `pages.md`, `user-flows.md`, and
 
 ## 7. Responsive / Accessibility / Loading-Error Rules
 
-- Dashboard and builder are mobile-first; history table is desktop-dense with horizontal scroll on small screens; every touch target ≥44px (design-system §8).
-- Semantic HTML, visible focus rings (`focus` token), labeled controls, live regions for run-status changes and toast results, status never color-only (icon + text; design-system §1).
-- Every fetch shows skeleton → content | empty-state | error-with-retry. Errors are human sentences from `content.md`; backend codes are secondary and muted and never include traces.
+- Dashboard and builder are mobile-first; history table is desktop-dense with horizontal scroll on small screens (first column sticky); every touch target ≥44px (design-system §9).
+- **Mobile (390px) follows the `07 Mobile + states` canvas exactly** (design-system §9): 56px white header (logo + page title + 44px search), content padding 16px, stat cards in a 2-column grid, automations as **stacked cards** (not a scrolling table), **64px bottom tab bar** (Dashboard, Create, History, Settings); builder library and inspector open as bottom sheets; landing H1 40px with stacked full-width CTAs; the run-detail panel becomes a full-screen sheet.
+- Semantic HTML, visible focus rings (`focus` token), labeled controls, live regions for run-status changes and toast results, status never color-only (icon + text; design-system §2 status palette, §7 icons).
+- Every fetch shows skeleton → content | empty-state | error-with-retry, using the **exact card anatomy** in design-system §8 (dot-grid empty card, tinted error card, `Copied` toast). Where the design gives literal copy, use it verbatim (`No automations yet`, `Create your first automation and its runs will show up here.`, `We couldn't load your runs`, `Check your connection and try again.`, `Retry`, `Contact support`). Other errors are human sentences from `content.md`; backend codes are secondary and muted and never include traces.
 - Security UX is accessible: redirect messages announced via live region; re-auth and confirm dialogs trap focus; secrets are announced as “hidden” and never read aloud unless revealed.
 
-## 8. Design-System v2 Reconciliation
+## 8. Design-System v3 ↔ Scope Reconciliation
 
-v2 introduces patterns that conflict with frozen scope or labels. Decisions (design-system.md is not edited; these rules override at implementation):
+### 8.1 Precedence
 
-| v2 design element | V1 decision |
-|---|---|
-| Header link `Pricing`; “Plan / Free plan” label; usage meter in sidebar | **Dropped** (no pricing/billing; `grep -ri pricing apps/web` must be empty) |
-| `Templates` nav + Templates preview section on landing | **Dropped** (no route; no data source) |
-| `Docs` / `Product` header links | **Dropped** in V1 (no route). Landing uses in-page anchors only (`How it works`, `FAQ`) |
-| Workspace switcher | **Replaced** by a static account chip (name + email, user menu with Settings / Sign out). No workspaces in V1 |
-| CTA copy `Start free`, `New automation` | **Replaced** by `Create automation` everywhere (never rename) |
-| Dashboard H1 `Dashboard` | H1 is `My automations`; nav item label stays `Dashboard` |
-| ⌘K command palette | **V1-lite:** navigation to frozen routes + search over loaded automations. No new endpoints; no actions that mutate |
-| Announcement bar | Optional, static text only, no external link |
-| Landing metrics strip | Only real values from backend/BRD or labelled placeholders; hidden until real |
-| FAQ | No plan/pricing questions; copy from `content.md` |
-| Theme toggle | Visible but light-only in V1 (dark tokens reserved) |
-| Right rail “Getting started” | Derived from backend data (has automation? has runs?); no client-only flags |
-| Right rail “Needs attention” | Derived from `GET /dashboard` failed/suspended; no invented counts |
-| Analytics | Stays at frozen `/analytics`; add as sidebar item `Analytics`; charts use `GET /dashboard` only |
-| Connections | Section of `/settings` (`#connections`), not a route |
+| Layer | Authority | Rule |
+|---|---|---|
+| Visual layer — tokens, type, spacing, radii, depth, layout, component anatomy, motion, screen copy, screen states | **The Canva design file** (`Zapier-Monorepo Web App Design v2.html`), transcribed in `design-system.md` v3 | The design wins. Implementation transcribes; it does not reinterpret. |
+| Product scope — which routes and features exist at all | `docs/PRD.md`, `docs/BRD.md` | The PRD/BRD win. A design element that implies an excluded feature is **not built**; the table below records the decision. |
+| Behaviour, security, data, backend wiring | `pages.md`, `user-flows.md`, `docs/TRD.md`, `docs/DATAFLOW.md`, §5 below | Unchanged by the design. |
+
+This section is the **single place** where a design element is rejected or adapted. `pages.md` and `design-system.md` reference it; they do not repeat it.
+
+### 8.2 Reconciliation table
+
+| Canvas | Design element | V1 decision | Authority |
+|---|---|---|---|
+| Landing | Header links `Product`, `Templates`, `Pricing`, `Docs` | **Dropped** — no routes. Header = logo + in-page anchors (`How it works`, `FAQ`) + `Log in` + `Create automation` | PRD §5 "about the project only, no pricing anywhere"; PRD §6 |
+| Landing | `Templates` preview section | **Dropped** — no route, no data source | PRD §5, §6 |
+| Landing | Hero primary `Start free` | **Replaced** by `Create automation` (never rename a working label) | `content.md` |
+| Landing | Hero secondary `See a live run` | **Kept** — in-page anchor to the run-log bento tile (`/#runs`) | design |
+| Landing | Hero card webhook URL `https://hooks.zapflow.app/catch/8f2a91` | **Never hardcoded** — rendered from the backend `webhookUrl` (`HOOKS_URL`) | TRD, DATAFLOW |
+| Landing | Integration marquee with brand logos | **Generic integration names only** — no third-party logos/assets, no third-party scripts | SEC-SUP-2 |
+| Landing | Metrics strip (`1,284`, `2,000`, …) | **Real values only**; hidden until real data exists | BRD |
+| Landing | FAQ section | **Kept**, minus any plan/pricing questions | PRD §5 |
+| Landing | Footer columns `Product / Resources / Company` | **3 columns**, no pricing links; `Resources`/`Company` entries are inert placeholders (no routes exist) | PRD §6 |
+| Landing | Brand `Zapflow` | **Adopted** as the user-facing product name; `Zapier-Monorepo` stays the technical/repo name | user decision |
+| Auth | Split layout (form left, product vignette right on dot grid) | **Kept exactly** — 52/48, vignette hidden below `lg` | design |
+| Auth | Vignette headline `Every run, step by step.` + a **failed** run timeline | **Kept** — static product copy only, no user data | design, SEC-PRIV-1 |
+| Auth | Google + GitHub buttons side by side | **Kept** — each with an explicit `aria-label` | design, PRD F-1 |
+| Auth | Signup name field + password strength bar | **Kept** — the bar is **advisory only** and never blocks submit; the server rule (min 8) wins | design, PRD F-1 |
+| Auth | `Log in` / `Create account` labels | **Kept** | design |
+| Dashboard | H1 `Dashboard` | H1 is `My automations`; the sidebar item label stays `Dashboard` | `content.md` |
+| Dashboard | Header primary `New automation ⌘N` | **Replaced** by `Create automation ⌘N` | `content.md` |
+| Dashboard | Header secondary `Docs` | **Dropped** — no route. The page header keeps only `Create automation` | PRD §6 |
+| Dashboard | Sidebar `Acme Ops ▾ / Free plan` (workspace switcher) | **Dropped** — replaced by the account chip (avatar, name, email, sign out) | PRD §6 (no teams/workspaces) |
+| Dashboard | Sidebar usage meter `Runs this month 1,284 / 2,000` | **Dropped** | PRD §6 (no usage billing) |
+| Dashboard | Sidebar `Templates` | **Dropped** | PRD §5, §6 |
+| Dashboard | Sidebar `Analytics` (absent from the design) | **Added** at the frozen `/analytics`; data from `GET /api/v1/analytics?window=7d\|30d\|90d` (same payload as `/dashboard`) | PRD F-7, TRD §5.1 #5 |
+| Dashboard | Sidebar `Connections` (absent from the design) | `/settings#connections` — a section of `/settings`, not a route | PRD §5, F-10 |
+| Dashboard | `Runs per day` chart — Succeeded (ink) / **Failed `#DC2626`** bars, 7d/30d/90d tabs | **Kept exactly** — `#DC2626` is the dataviz token, distinct from the status-failed red | design §2 |
+| Dashboard | Right rail `Needs attention`, `Getting started 2 / 4` | **Derived from backend data only** (`GET /api/v1/dashboard`); no invented counts, no client-only flags | PRD F-7 |
+| Dashboard | Automations table columns Name / Steps / On / Last run / Status | **Kept** — `Last run` is 12px mono from real run data; the `On` column is the active toggle | design, PRD F-14 |
+| Dashboard | Failed row `#FFFBFA` + error sentence + `View step` | **Kept** | design |
+| History | Run detail as a 480px **overlay drawer** (PRD wording) | Design's **480px inline side panel** beside the table; on narrow screens it becomes a full-screen sheet | PRD F-12 (capability) + design (rendering) |
+| History | Grouped sidebar | **Flat** variant on history (logo + workspace name + flat nav, same 32px items and active treatment) | design |
+| History | Filter chips `Status 2`, `All automations`, `Last 30 days` | **Kept** — the Zap filter lives in the `All automations` chip | design, PRD F-14 |
+| History | Footer `1–25 of 1,284 · runs are kept for 90 days` | **Kept** — counts from the backend; the 90-day retention copy is mandatory | design, PRD F-14 |
+| History | `Retry run`, `Copy ID`, `Retry from this step`, `Check connection` | **Kept** — Replay only for FAILED/DLT, rate-limited, never auto-looping | design, PRD F-11 |
+| Builder | Canvas connectors as curves | **Vertical** 1.5px rules with a 22px `+` insert handle | design |
+| Builder | Node card width 280px | **300px** | design |
+| Builder | Inspector `Setup / Test / Settings` tabs | **Kept** — the `Settings` tab additionally hosts the workflow summary (§8.3) | design, PRD F-3/F-14 |
+| Builder | `Draft` badge + `Saved · 12:04` | **Kept** — badge reflects real publish state, timestamp reflects the real save time | design |
+| Builder | `Publish ⌘↵` | **Kept** — `⌘↵` submits; the request carries CSRF + `Idempotency-Key` | design, PRD F-3 |
+| Global | Compact nav label `Create` (dashboard groups, history flat nav, mobile tab bar) | **Expanded** to `Create automation` — a working label is never renamed | `content.md` |
+| Global | Dark theme | **Reserved** — dark tokens defined, light only in V1; `ThemeToggle` present but light-only | design §10 |
+| Global | `⌘K` palette in the top bar | **V1-lite** — navigate to frozen routes + search loaded automations; no new endpoints, no mutating actions | design, no backend change |
+| Global | Announcement bar | Optional, static text only, no external link | PRD §5 |
+| Global | Geist Sans / Geist Mono | Loaded via `next/font` (self-hosted, no Google origin at runtime) | design §2, SEC-XSS-3 |
+
+### 8.3 Sanctioned additions (PRD requires, the design does not draw)
+
+These are the **only** additions to the drawn design. They use existing design components and add no new visual language.
+
+| # | Addition | Where it lives | Authority |
+|---|---|---|---|
+| A1 | **Workflow summary** — active toggle, webhook URL, secret (shown once), rotate secret | Builder inspector, **Settings** tab (`/zap/[id]`) | PRD F-3, F-4, F-14 |
+| A2 | **Recent runs entry point** — History pre-filtered to this Zap (`?zap=`) | Builder inspector, Settings tab | PRD F-7, F-12 |
+| A3 | **`Analytics` nav item** | App sidebar → frozen `/analytics`, reusing the dashboard chart card | PRD F-7 |
+| A4 | **`Connections` nav item** | App sidebar → `/settings#connections` | PRD §5, F-10 |
+| A5 | **Folder filter** (design shows search only) | Automations card header, next to search, using the design's filter-chip component | PRD §5 ("folders + search + active toggle") |
+| A6 | **⌘K command palette** | Top bar search button | design top bar + no new endpoints |
+| A7 | **Step / run I/O code wells** — step input/output as truncated mono text | Run-detail panel (history) and builder test panel | PRD F-12, SEC-XSS-1/2 |
+
+### 8.4 Never build (explicit exclusions)
+
+| Excluded | Reason | Gate |
+|---|---|---|
+| Pricing page, pricing links, plan badges, upgrade prompts | PRD §5/§6, BRD — no billing | `grep -ri pricing apps/web` is empty |
+| Templates route, nav item, landing section, preview card | PRD §5/§6 — no route, no data source | no `/templates` link or route |
+| Workspace switcher, `Free plan`, plan labels | PRD §6 — no teams/workspaces | no workspace switcher component |
+| Sidebar usage meter / quota bar | PRD §6 — no usage billing | no quota component |
+| `Docs` / `Product` header links | no route in `pages.md` | links point only to in-page anchors |
+| Dark theme in V1 | reserved in design §10 | only light tokens applied |
+| MFA UI | PRD — backend-ready only; `MFA_REQUIRED` renders as a generic failure | no MFA screen |
+| Third-party scripts, logos, analytics, CDN | SEC-SUP-2, SEC-XSS-3 | CSP has no third-party origins; `npm run build` output scanned |
 
 ## 9. V1 Out of Scope
 
 Per `PRD.md` §6 and `BRD.md` §4: team sharing/workspaces, Zap versioning UI beyond revision-conflict handling, branching/paths UI, usage billing/payments/pricing page, mobile app, multi-region behavior, unrestricted theming (light theme tokens only), push notifications, third-party analytics, in-browser secret storage, MFA UI (backend-ready: handle `MFA_REQUIRED` verdict as generic failure until specified).
 
+Everything in §8.4 is likewise out of scope for V1: no pricing/billing, no Templates, no workspace switcher, no usage meter, no `Docs`/`Product` header links, no dark theme, no third-party scripts or logos.
+
 ## 10. Definition of Done
 
 Planning is sufficient when implementation can begin without inventing routes, flows, component behavior, responsive rules, tokens, user-facing copy, or security behavior. Code is done when:
 
-1. All 8 frozen routes (+ `/forgot`, `/reset`, `/auth/callback`) render real data; legacy bugs (`userId=1`, hardcoded dates, `localStorage` token) are gone; `grep -ri pricing apps/web` is empty.
+1. All 12 frozen routes in `pages.md` render real data; legacy bugs (`userId=1`, hardcoded dates, `localStorage` token) are gone; `grep -ri pricing apps/web` is empty.
 2. **Redirect tests (unit + Playwright)** pass for `safeNext()` with at least: `https://evil.com`, `//evil.com`, `/\evil.com`, `\\evil.com`, `/%2F%2Fevil.com`, `/%5Cevil.com`, `javascript:alert(1)`, `data:text/html,x`, `/dashboard%0d%0aSet-Cookie:x`, ` /dashboard`, `/login?next=/login`, a 600-char path, `/zap/..%2Fadmin`, plus valid `/dashboard`, `/history`, `/zap/create`, `/zap/abc_123`, `/settings`.
 3. **Auth-gate tests:** unauthenticated hit on every protected route → `/login?next=…`; authenticated hit on `/login|/signup|/forgot` → `/dashboard`; 401 mid-session → single redirect, no loop; back button after Sign out shows no cached data; another tab signs out when one tab does.
 4. **XSS tests:** payloads such as `<img src=x onerror=alert(1)>` and `"><script>` in Zap name, step output, error string, and `/auth/callback?error=` render inert text; CSP violation reports are empty in the E2E run.
@@ -245,8 +318,11 @@ Planning is sufficient when implementation can begin without inventing routes, f
 6. Header scan (e.g. `curl -I`/ZAP baseline) shows all SEC-8 headers; CSP enforced in production; `npm audit --omit=dev` has no high/critical.
 7. Secret handling test: webhook secret never appears in DevTools Application storage, URL, network request URLs, or React Query cache snapshot after navigation.
 8. Every gate in `pages.md` and `user-flows.md` passes.
+9. **Design-parity gate:** every route is screenshotted at 1440px and 390px and reviewed against its canvas in the design file — tokens, component anatomy, copy, and states match; the only deviations are the ones recorded in §8.2/§8.3.
+10. **Scope-exclusion gate:** §8.4 elements are absent from the DOM and the bundle — `grep -ri "pricing\|free plan\|templates\|acme ops\|maya rao\|hooks.zapflow.app" apps/web` returns nothing; no `href="/templates"`, no workspace switcher, no quota meter.
+11. **No hardcoded sample data:** the design's illustration values (`1,284`, `2,000`, `run_8f2a91`, `2 / 4`) appear only in fixtures, never in rendered output; the webhook URL is rendered from the backend response.
 
 ---
 
-**Status:** DRAFT v2
-**Freeze rule:** Colors, type, spacing, radii, depth, and motion come from `design-system.md` v2 tokens only. Security requirements here may be tightened but not relaxed without a PRD update. No new visual language without a PRD update.
+**Status:** DRAFT v3
+**Freeze rule:** Colors, type, spacing, radii, depth, layout, motion, component anatomy and screen copy come from `design-system.md` v3 (the Canva design file) only. Scope comes from `PRD.md`/`BRD.md`, reconciled in §8. Security requirements here may be tightened but not relaxed without a PRD update. No new visual language without a PR to `design-system.md`.

@@ -1,0 +1,56 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        paper: "var(--paper)",
+        surface: "var(--surface)",
+        sunken: "var(--sunken)",
+        line: "var(--line)",
+        "line-strong": "var(--line-strong)",
+        ink: "var(--ink)",
+        "ink-2": "var(--ink-2)",
+        "ink-3": "var(--ink-3)",
+        "ink-4": "var(--ink-4)",
+        flame: {
+          50: "var(--flame-50)",
+          100: "var(--flame-100)",
+          300: "var(--flame-300)",
+          500: "var(--flame-500)",
+          600: "var(--flame-600)",
+          700: "var(--flame-700)",
+        },
+        "status-success": "var(--status-success)",
+        "status-success-bg": "var(--status-success-bg)",
+        "status-running": "var(--status-running)",
+        "status-running-bg": "var(--status-running-bg)",
+        "status-failed": "var(--status-failed)",
+        "status-failed-bg": "var(--status-failed-bg)",
+        "status-suspended": "var(--status-suspended)",
+        "status-suspended-bg": "var(--status-suspended-bg)",
+        "chart-succeeded": "var(--chart-succeeded)",
+        "chart-failed": "var(--chart-failed)",
+      },
+      fontFamily: {
+        sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
+      },
+      borderRadius: {
+        xs: "var(--radius-xs)",
+        sm: "var(--radius-sm)",
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
+        "2xl": "var(--radius-2xl)",
+      },
+      spacing: {
+        "sidebar": "248px",
+        "topbar": "56px",
+        "rail": "64px",
+        "tabbar": "64px",
+      },
+    },
+  },
+  plugins: [],
+};

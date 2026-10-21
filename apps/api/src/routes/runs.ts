@@ -24,8 +24,7 @@ export function runsRouter(deps: RunsRouteDeps): Router {
   const router = Router();
   router.use(requireAuth(deps.secret));
 
-  router.get("/zap/:id/runs", async (req: Request, res: Response) => {
-    const zapId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  router.get("/zap/:id/runs", async (req: Request, res: Response) => {    const zapId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const parsed = runsQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       res.status(400).json({ error: "invalid request" });
@@ -71,11 +70,54 @@ export function runsRouter(deps: RunsRouteDeps): Router {
     });
   });
 
+  router.get("/", async (req: Request, res: Response) => {
+    const parsed = runsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid request" });
+      return;
+    }
+    const { status, cursor, limit } = parsed.data;
+    const search = typeof req.query.search === "string" ? req.query.search : undefined;
+
+    const rows = await prisma.zapRun.findMany({
+      where: {
+        zap: {
+          userId: currentUserId(req),
+          ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
+        },
+        ...(status ? { status } : {}),
+        ...(cursor ? { id: { lt: cursor } } : {}),
+      },
+      include: { zap: { select: { name: true } } },
+      orderBy: { id: "desc" },
+      take: limit + 1,
+    });
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+
+    res.json({
+      runs: page.map((run) => ({
+        id: run.id,
+        zapId: run.zapId,
+        zapName: run.zap?.name ?? null,
+        zapRevision: run.zapRevision,
+        status: run.status,
+        error: run.error,
+        startedAt: run.startedAt,
+        finishedAt: run.finishedAt,
+        createdAt: run.createdAt,
+      })),
+      nextCursor: hasMore ? page.at(-1)!.id : null,
+      limit,
+    });
+  });
+
   router.get("/runs/:id", async (req: Request, res: Response) => {
     const runId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const run = await prisma.zapRun.findFirst({
       where: { id: runId, zap: { userId: currentUserId(req) } },
-      include: { steps: { orderBy: { order: "asc" } } },
+      include: { zap: { select: { name: true } }, steps: { orderBy: { order: "asc" } } },
     });
     if (!run) {
       res.status(404).json({ error: "not found" });
@@ -84,6 +126,7 @@ export function runsRouter(deps: RunsRouteDeps): Router {
     res.json({
       id: run.id,
       zapId: run.zapId,
+      zapName: run.zap?.name ?? null,
       zapRevision: run.zapRevision,
       status: run.status,
       metadata: run.metadata,
@@ -102,7 +145,6 @@ export function runsRouter(deps: RunsRouteDeps): Router {
       })),
     });
   });
-
   router.post(
     "/runs/:id/replay",
     rateLimit({
@@ -121,7 +163,20 @@ export function runsRouter(deps: RunsRouteDeps): Router {
         return;
       }
 
-      const key = randomUUID();
+      const idempotencyKey = typeof req.header("idempotency-key") === "string" ? req.header("idempotency-key") : null;
+      if (idempotencyKey) {
+        const existing = await prisma.idempotencyKey.findUnique({ where: { key: idempotencyKey } });
+        if (existing?.zapRunId) {
+          res.status(201).json({
+            zapRunId: existing.zapRunId,
+            sourceRunId: original.id,
+            zapRevision: original.zapRevision,
+          });
+          return;
+        }
+      }
+
+      const key = idempotencyKey || randomUUID();
       const replayed = await prisma.$transaction(async (tx) => {
         const run = await tx.zapRun.create({
           data: {

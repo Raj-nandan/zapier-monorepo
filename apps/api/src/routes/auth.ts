@@ -16,7 +16,8 @@ import {
   type OAuthProvider,
 } from "../lib/oauth";
 import { clearSessionCookies, issueSession, setSessionCookies } from "../lib/session";
-
+import { safeNext } from "../lib/safeNext";
+import { env } from "@repo/config";
 export const STATE_PREFIX = "oauth:state:";
 
 export interface AuthRouteDeps {
@@ -25,31 +26,37 @@ export interface AuthRouteDeps {
   dashboardUrl?: string;
 }
 
-function dashboardRedirect(deps: AuthRouteDeps): string {
-  return deps.dashboardUrl ?? "http://localhost:3000/dashboard";
-}
+
 
 export function authRouter(deps: AuthRouteDeps): Router {
   const router = Router();
 
-  async function begin(provider: OAuthProvider, res: Response): Promise<void> {
+  async function begin(provider: OAuthProvider, req: Request, res: Response): Promise<void> {
+    const next = safeNext(req.query.next);
     const state = randomValue();
     const nonce = randomValue();
     const codeVerifier = randomValue(48);
     const redis = await getRedis();
     await redis.set(
       `${STATE_PREFIX}${state}`,
-      JSON.stringify({ provider, nonce, codeVerifier }),
+      JSON.stringify({ provider, nonce, codeVerifier, next }),
       { EX: STATE_TTL_SECONDS },
     );
     res.redirect(302, authorizationUrl({ provider, state, nonce, codeVerifier, codeChallenge: pkceChallenge(codeVerifier) }));
   }
 
   async function callback(provider: OAuthProvider, req: Request, res: Response): Promise<void> {
+    const providerError = typeof req.query.error === "string" ? req.query.error : null;
+    if (providerError) {
+      const code = providerError === "access_denied" ? "access_denied" : "provider_error";
+      res.redirect(302, `${env.WEB_URL || "http://localhost:3000"}/auth/callback?error=${code}`);
+      return;
+    }
+
     const code = typeof req.query.code === "string" ? req.query.code : null;
     const state = typeof req.query.state === "string" ? req.query.state : null;
     if (!code || !state) {
-      res.status(400).json({ error: "invalid request" });
+      res.redirect(302, `${env.WEB_URL || "http://localhost:3000"}/auth/callback?error=provider_error`);
       return;
     }
 
@@ -59,15 +66,18 @@ export function authRouter(deps: AuthRouteDeps): Router {
     await redis.del(key);
 
     if (!stored) {
-      throw new OAuthError("invalid or expired state", 401);
+      res.redirect(302, `${env.WEB_URL || "http://localhost:3000"}/auth/callback?error=state_mismatch`);
+      return;
     }
     const parsed = JSON.parse(stored) as {
       provider: OAuthProvider;
       nonce: string;
       codeVerifier: string;
+      next?: string;
     };
     if (parsed.provider !== provider) {
-      throw new OAuthError("state provider mismatch", 401);
+      res.redirect(302, `${env.WEB_URL || "http://localhost:3000"}/auth/callback?error=state_mismatch`);
+      return;
     }
 
     const tokens = await exchangeCode({
@@ -144,23 +154,45 @@ export function authRouter(deps: AuthRouteDeps): Router {
 
     const session = await issueSession(user.id, user.email, user.tokenVersion, deps.secret);
     setSessionCookies(res, session);
-    res.redirect(302, dashboardRedirect(deps));
+    const destination = safeNext(parsed.next);
+    const base = (deps.dashboardUrl ?? env.WEB_URL ?? "http://localhost:3000").replace(/\/$/, "");
+    // dashboardUrl may include /dashboard suffix; strip trailing path
+    const origin = base.replace(/\/dashboard$/, "");
+    res.redirect(302, `${origin}${destination}`);
   }
 
-  router.get("/google", (_req: Request, res: Response) => {
-    begin("google", res).catch(nextError(res));
+  router.get("/google", (req: Request, res: Response) => {
+    begin("google", req, res).catch(nextError(res));
   });
 
-  router.get("/github", (_req: Request, res: Response) => {
-    begin("github", res).catch(nextError(res));
+  router.get("/github", (req: Request, res: Response) => {
+    begin("github", req, res).catch(nextError(res));
   });
 
   router.get("/callback/google", (req: Request, res: Response) => {
-    callback("google", req, res).catch(nextError(res));
+    callback("google", req, res).catch((error: Error) => {
+      if (error instanceof OAuthError) {
+        logger.warn({ event: "oauth_fail", reason: error.reason }, "oauth callback rejected");
+        res.redirect(302, `${env.WEB_URL || "http://localhost:3000"}/auth/callback?error=provider_error`);
+        return;
+      }
+      logger.error({ err: error.message }, "oauth failure");
+      clearSessionCookies(res);
+      res.redirect(302, `${env.WEB_URL || "http://localhost:3000"}/auth/callback?error=provider_error`);
+    });
   });
 
   router.get("/callback/github", (req: Request, res: Response) => {
-    callback("github", req, res).catch(nextError(res));
+    callback("github", req, res).catch((error: Error) => {
+      if (error instanceof OAuthError) {
+        logger.warn({ event: "oauth_fail", reason: error.reason }, "oauth callback rejected");
+        res.redirect(302, `${env.WEB_URL || "http://localhost:3000"}/auth/callback?error=provider_error`);
+        return;
+      }
+      logger.error({ err: error.message }, "oauth failure");
+      clearSessionCookies(res);
+      res.redirect(302, `${env.WEB_URL || "http://localhost:3000"}/auth/callback?error=provider_error`);
+    });
   });
 
   return router;

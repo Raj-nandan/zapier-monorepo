@@ -97,12 +97,12 @@ const actionSchema = z.object({
 
 export const zapCreateSchema = z
   .object({
+    name: z.string().optional(),
     folderId: z.string().optional(),
     availableTriggerId: z.string().min(1),
     triggerMetadata: z.record(z.any()).default({}),
     actions: z.array(actionSchema).min(1),
-  })
-  .superRefine((val, ctx) => {
+  })  .superRefine((val, ctx) => {
     enforceSizeCap(val, ctx);
     validateRefs(val.triggerMetadata, 0, ["triggerMetadata"], ctx);
     val.actions.forEach((action, index) => {

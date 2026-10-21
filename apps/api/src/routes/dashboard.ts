@@ -6,14 +6,23 @@ export interface DashboardRouteDeps {
   secret: string;
 }
 
+function windowDays(raw: unknown): number {
+  const value = typeof raw === "string" ? raw : "30d";
+  if (value === "7d") return 7;
+  if (value === "90d") return 90;
+  return 30;
+}
+
 export function dashboardRouter(deps: DashboardRouteDeps): Router {
   const router = Router();
   router.use(requireAuth(deps.secret));
 
   router.get("/", async (req: Request, res: Response) => {
     const userId = currentUserId(req);
+    const days = windowDays(req.query.window);
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    const [zaps, byStatus, latency, recent] = await Promise.all([
+    const [zaps, byStatus, latency, recent, windowRuns, failedRuns, suspendedRuns] = await Promise.all([
       prisma.zap.findMany({
         where: { userId },
         select: { id: true, name: true, active: true, revision: true },
@@ -44,6 +53,22 @@ export function dashboardRouter(deps: DashboardRouteDeps): Router {
         orderBy: { id: "desc" },
         take: 10,
       }),
+      prisma.zapRun.findMany({
+        where: { zap: { userId }, createdAt: { gte: cutoff } },
+        select: { status: true, createdAt: true },
+      }),
+      prisma.zapRun.findMany({
+        where: { zap: { userId }, status: "FAILED" },
+        select: { id: true, zapId: true, error: true, createdAt: true, zap: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      }),
+      prisma.zapRun.findMany({
+        where: { zap: { userId }, status: "SUSPENDED" },
+        select: { id: true, zapId: true, resumeAt: true, createdAt: true, zap: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      }),
     ]);
 
     const counts: Record<string, number> = {};
@@ -63,12 +88,48 @@ export function dashboardRouter(deps: DashboardRouteDeps): Router {
       ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length)
       : null;
 
+    // Bucket runs per day for the window.
+    const buckets = new Map<string, { succeeded: number; failed: number }>();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      const key = d.toISOString().slice(0, 10);
+      buckets.set(key, { succeeded: 0, failed: 0 });
+    }
+    for (const run of windowRuns) {
+      const key = run.createdAt.toISOString().slice(0, 10);
+      const bucket = buckets.get(key);
+      if (!bucket) continue;
+      if (run.status === "SUCCESS") bucket.succeeded += 1;
+      else if (run.status === "FAILED") bucket.failed += 1;
+    }
+    const runsPerDay = Array.from(buckets.entries()).map(([date, v]) => ({
+      date,
+      succeeded: v.succeeded,
+      failed: v.failed,
+    }));
+
     res.json({
+      window: `${days}d`,
       activeZaps: zaps.filter((zap) => zap.active).length,
       totalZaps: zaps.length,
       runCounts: counts,
       totalRuns: Object.values(counts).reduce((sum, value) => sum + value, 0),
       averageLatencyMs,
+      runsPerDay,
+      failedRuns: failedRuns.map((r) => ({
+        id: r.id,
+        zapId: r.zapId,
+        zapName: r.zap?.name ?? null,
+        error: r.error,
+        createdAt: r.createdAt,
+      })),
+      suspendedRuns: suspendedRuns.map((r) => ({
+        id: r.id,
+        zapId: r.zapId,
+        zapName: r.zap?.name ?? null,
+        resumeAt: r.resumeAt,
+        createdAt: r.createdAt,
+      })),
       zaps,
       recentRuns: recent,
     });
