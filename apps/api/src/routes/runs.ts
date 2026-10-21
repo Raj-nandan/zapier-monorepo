@@ -70,7 +70,7 @@ export function runsRouter(deps: RunsRouteDeps): Router {
     });
   });
 
-  router.get("/", async (req: Request, res: Response) => {
+  router.get(["/runs", "/"], async (req: Request, res: Response) => {
     const parsed = runsQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       res.status(400).json({ error: "invalid request" });

@@ -28,11 +28,16 @@ type RunDetail = {
   steps: { title: string; time: string; code: string; error?: string; status: string }[];
 };
 
-async function fetchRuns(): Promise<{ runs: Run[]; total: number; nextCursor?: string }> {
-  const res = await apiFetch("/runs?limit=25", { cache: "no-store" });
+async function fetchRuns(params: { search?: string; status?: string; cursor?: string }): Promise<{ runs: Run[]; nextCursor?: string | null }> {
+  const q = new URLSearchParams();
+  q.set("limit", "25");
+  if (params.search) q.set("search", params.search);
+  if (params.status && params.status !== "ALL") q.set("status", params.status);
+  if (params.cursor) q.set("cursor", params.cursor);
+  const res = await apiFetch(`/runs?${q.toString()}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to load runs");
   const data = await res.json();
-  return { runs: data.runs ?? data ?? [], total: data.total ?? 0, nextCursor: data.nextCursor };
+  return { runs: data.runs ?? data ?? [], nextCursor: data.nextCursor ?? null };
 }
 
 async function fetchRunDetail(id: string): Promise<RunDetail> {
@@ -58,8 +63,15 @@ const statusVariant: Record<string, "success" | "failed" | "running" | "suspende
 
 export default function HistoryPage() {
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("ALL");
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [cursorStack, setCursorStack] = useState<string[]>([]);
 
-  const { data, isLoading, refetch } = useQuery({ queryKey: ["runs"], queryFn: fetchRuns });
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["runs", search, status, cursor],
+    queryFn: () => fetchRuns({ search, status, cursor: cursor ?? undefined }),
+  });
   const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ["run", selectedRun],
     queryFn: () => fetchRunDetail(selectedRun!),
@@ -67,6 +79,7 @@ export default function HistoryPage() {
   });
 
   const runs = data?.runs ?? [];
+  const nextCursor = data?.nextCursor ?? null;
 
   const handleReplay = async (id: string) => {
     try {
@@ -92,16 +105,15 @@ export default function HistoryPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Input placeholder="Search by run ID" className="h-8 w-48" />
-          <button className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-line-strong bg-surface px-3 text-sm font-medium text-ink-2">
-            Status
-          </button>
-          <button className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-line-strong bg-surface px-3 text-sm font-medium text-ink-2">
-            All automations
-          </button>
-          <button className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-line-strong bg-surface px-3 text-sm font-medium text-ink-2">
-            Last 30 days
-          </button>
+          <Input placeholder="Search by Zap name" className="h-8 w-48" value={search} onChange={(e) => { setSearch(e.target.value); setCursor(null); setCursorStack([]); }} />
+          <select className="h-8 rounded-sm border border-line-strong bg-surface px-3 text-sm" value={status} onChange={(e) => { setStatus(e.target.value); setCursor(null); setCursorStack([]); }}>
+            <option value="ALL">All statuses</option>
+            <option value="SUCCESS">Success</option>
+            <option value="FAILED">Failed</option>
+            <option value="RUNNING">Running</option>
+            <option value="PENDING">Pending</option>
+            <option value="SUSPENDED">Suspended</option>
+          </select>
         </div>
 
         <div className="flex gap-4">
@@ -150,8 +162,8 @@ export default function HistoryPage() {
                   <div className="flex items-center justify-between border-t border-line px-4 py-3">
                     <span className="text-xs text-ink-3">{runs.length} runs · runs are kept for 90 days</span>
                     <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" disabled>Previous</Button>
-                      <Button variant="secondary" size="sm" disabled={!data?.nextCursor}>Next</Button>
+                      <Button variant="secondary" size="sm" disabled={cursorStack.length === 0} onClick={() => { const prev = cursorStack[cursorStack.length - 1]; setCursorStack((s) => s.slice(0, -1)); setCursor(prev ?? null); }}>Previous</Button>
+                      <Button variant="secondary" size="sm" disabled={!nextCursor} onClick={() => { if (nextCursor) { setCursorStack((s) => (cursor ? [...s, cursor] : s)); setCursor(nextCursor); } }}>Next</Button>
                     </div>
                   </div>
                 </>

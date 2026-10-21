@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { safeNext } from "./lib/safeNext";
 
@@ -15,9 +15,10 @@ export function middleware(req: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
 
   // Build CSP with nonce
+  const isProd = process.env.NODE_ENV === "production";
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isProd ? "" : " 'unsafe-eval'"}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
@@ -26,7 +27,7 @@ export function middleware(req: NextRequest) {
     "base-uri 'none'",
     "form-action 'self'",
     "object-src 'none'",
-    "upgrade-insecure-requests",
+    ...(isProd ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
 
   function applyHeaders(res: NextResponse) {

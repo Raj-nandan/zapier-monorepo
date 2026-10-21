@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { env } from "@repo/config";
 import { CSRF_COOKIE, CSRF_TTL_SECONDS, issueCsrfToken } from "../lib/csrf";
 
 export interface CsrfRouteDeps {
@@ -12,7 +13,7 @@ export function csrfRouter(deps: CsrfRouteDeps): Router {
     const token = issueCsrfToken(deps.secret);
     res.cookie(CSRF_COOKIE, token, {
       httpOnly: false,
-      secure: true,
+      secure: env.NODE_ENV !== "development",
       sameSite: "lax",
       path: "/",
       maxAge: CSRF_TTL_SECONDS * 1000,

@@ -13,7 +13,7 @@ function smtpConfigured(): boolean {
 export function createMailer(): Mailer {
   return async ({ to, subject, text }) => {
     if (!smtpConfigured()) {
-      logger.warn({ to }, "smtp not configured, reset email not sent");
+      logger.warn({ to, resetUrl: text }, "smtp not configured, reset email not sent");
       return;
     }
     if (!transport) {

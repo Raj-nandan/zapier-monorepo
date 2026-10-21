@@ -1,4 +1,5 @@
 import type { Response } from "express";
+import { env } from "@repo/config";
 import { prisma } from "@repo/db";
 import {
   ACCESS_COOKIE,
@@ -18,7 +19,7 @@ export const LOCKOUT_SECONDS = 15 * 60;
 
 export const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: true,
+  secure: env.NODE_ENV !== "development",
   sameSite: "lax",
   path: "/",
 } as const;

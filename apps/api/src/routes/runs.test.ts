@@ -190,6 +190,54 @@ describe("GET /api/v1/zap/:id/runs", () => {
   });
 });
 
+describe("GET /api/v1/runs", () => {
+  it("requires authentication", async () => {
+    expect((await request(app).get("/api/v1/runs")).status).toBe(401);
+  });
+
+  it("returns owner-scoped global runs across all zaps with zapName", async () => {
+    const { cookie, userId } = await signUp("global-runs@example.com");
+    const { zap: zap1 } = await createZap(userId);
+    const { zap: zap2 } = await createZap(userId);
+    await createRun(zap1.id, { status: "SUCCESS" });
+    await createRun(zap2.id, { status: "FAILED" });
+
+    const response = await request(app).get("/api/v1/runs?limit=10").set("Cookie", cookie);
+    expect(response.status).toBe(200);
+    expect(response.body.runs).toHaveLength(2);
+    expect(response.body.runs[0].zapName).toBe("History zap");
+    expect(response.body.nextCursor).toBeNull();
+  });
+
+  it("filters global runs by status", async () => {
+    const { cookie, userId } = await signUp("filter-global@example.com");
+    const { zap } = await createZap(userId);
+    await createRun(zap.id, { status: "SUCCESS" });
+    await createRun(zap.id, { status: "FAILED" });
+
+    const response = await request(app).get("/api/v1/runs?status=FAILED").set("Cookie", cookie);
+    expect(response.status).toBe(200);
+    expect(response.body.runs).toHaveLength(1);
+    expect(response.body.runs[0].status).toBe("FAILED");
+  });
+
+  it("paginates with cursor", async () => {
+    const { cookie, userId } = await signUp("paginate-global@example.com");
+    const { zap } = await createZap(userId);
+    for (let i = 0; i < 3; i++) await createRun(zap.id);
+
+    const first = await request(app).get("/api/v1/runs?limit=2").set("Cookie", cookie);
+    expect(first.body.runs).toHaveLength(2);
+    expect(first.body.nextCursor).toBeTruthy();
+
+    const second = await request(app)
+      .get(`/api/v1/runs?limit=2&cursor=${first.body.nextCursor}`)
+      .set("Cookie", cookie);
+    expect(second.body.runs).toHaveLength(1);
+    expect(second.body.nextCursor).toBeNull();
+  });
+});
+
 describe("GET /api/v1/runs/:id", () => {
   it("returns the run with ordered steps", async () => {
     const { cookie, userId } = await signUp("detail@example.com");

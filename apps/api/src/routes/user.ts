@@ -154,7 +154,7 @@ export function userRouter(deps: UserRouteDeps): Router {
 
   router.post(
     "/forgot",
-    rateLimit({ limit: 3, windowSeconds: 3600, key: (req: Request) => `forgot:${req.body?.username ?? ""}` }),
+    rateLimit({ limit: 3, windowSeconds: 3600, key: (req: Request) => `forgot:${req.body?.email ?? req.body?.username ?? req.ip ?? ""}` }),
     async (req: Request, res: Response) => {
       const parsed = forgotSchema.safeParse(req.body);
       if (!parsed.success) {

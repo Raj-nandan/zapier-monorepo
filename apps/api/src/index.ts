@@ -33,7 +33,7 @@ export function createApp(): Express {
     res.setHeader("Access-Control-Allow-Origin", corsOrigin());
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-Id, If-Match");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-Id, If-Match, X-CSRF-Token, Idempotency-Key");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     if (req.method === "OPTIONS") {
       res.sendStatus(204);

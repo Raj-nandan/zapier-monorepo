@@ -293,18 +293,12 @@ export default function DashboardPage() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold">Getting started</CardTitle>
-                <span className="font-mono text-xs text-ink-3">2 / 4</span>
               </CardHeader>
               <CardContent>
-                <div className="mb-3 h-1.5 w-full rounded-full bg-line">
-                  <div className="h-1.5 w-1/2 rounded-full bg-flame-500" />
-                </div>
                 <ul className="space-y-2 text-xs text-ink-2">
-                  {["Create your first automation", "Publish an automation", "Connect an app", "Run a test"].map((item, i) => (
+                  {["Create your first automation", "Publish an automation", "Connect an app", "Run a test"].map((item) => (
                     <li key={item} className="flex items-center gap-2">
-                      <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full ${i < 2 ? "bg-status-success text-white" : "border border-line-strong bg-surface"}`}>
-                        {i < 2 && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>}
-                      </span>
+                      <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-line-strong bg-surface" />
                       {item}
                     </li>
                   ))}

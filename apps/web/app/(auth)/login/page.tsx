@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,9 +17,10 @@ const schema = z.object({
 type Form = z.infer<typeof schema>;
 
 function LoginPageInner() {
-  const router = useRouter();
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
+  const registered = params.get("registered") === "true";
+  const resetSuccess = params.get("reset") === "true";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -34,7 +35,7 @@ function LoginPageInner() {
         setError(res.status === 429 ? "Too many requests. Please wait and try again." : "Invalid credentials. Please try again.");
         return;
       }
-      router.push(next);
+      window.location.href = next;
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -43,9 +44,19 @@ function LoginPageInner() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} method="post" action="#" className="space-y-4" noValidate>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <h1 className="text-2xl font-bold text-ink">Welcome back</h1>
       <p className="text-sm text-ink-3">Log in to manage your automations.</p>
+      {registered && (
+        <div role="status" className="rounded-md border border-status-success/30 bg-status-success-bg p-3 text-sm text-status-success">
+          Account created successfully! Please log in to continue.
+        </div>
+      )}
+      {resetSuccess && (
+        <div role="status" className="rounded-md border border-status-success/30 bg-status-success-bg p-3 text-sm text-status-success">
+          Password updated successfully! Please log in with your new password.
+        </div>
+      )}
       {error && <p role="alert" className="text-sm text-status-failed">{error}</p>}
       <div className="flex gap-2">
         <a href={`/api/v1/auth/google?next=${encodeURIComponent(next)}`} className="flex-1 rounded-sm border border-line-strong bg-surface px-3 py-2 text-center text-sm font-medium text-ink hover:bg-sunken">Google</a>

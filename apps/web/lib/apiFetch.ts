@@ -16,7 +16,17 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     headers.set("Idempotency-Key", crypto.randomUUID());
   }
   const res = await fetch(`/api/v1${path}`, { ...init, headers, credentials: "include" });
-  if (res.status === 401 && typeof window !== "undefined" && !redirecting) {
+  const isAuthPath =
+    path.startsWith("/user/signin") ||
+    path.startsWith("/user/signup") ||
+    path.startsWith("/user/forgot") ||
+    path.startsWith("/user/reset") ||
+    path.startsWith("/auth/");
+  const isAuthPage =
+    typeof window !== "undefined" &&
+    ["/login", "/signup", "/forgot", "/reset"].some((p) => window.location.pathname.startsWith(p));
+
+  if (res.status === 401 && !isAuthPath && !isAuthPage && typeof window !== "undefined" && !redirecting) {
     redirecting = true;
     window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
   }
