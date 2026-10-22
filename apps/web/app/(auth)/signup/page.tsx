@@ -50,7 +50,7 @@ function SignupPageInner() {
       }
       // Invalidate the session cookies set by signup so user explicitly logs in
       await apiFetch("/user/logout", { method: "POST" }).catch(() => {});
-      router.push("/login?registered=true");
+      router.replace("/login?registered=true");
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {

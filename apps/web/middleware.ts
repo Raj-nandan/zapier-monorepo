@@ -51,7 +51,7 @@ export function middleware(req: NextRequest) {
       return applyHeaders(NextResponse.redirect(url));
     }
   }
-  if (AUTH_ONLY.includes(pathname) && hasSession) {
+  if ((AUTH_ONLY.includes(pathname) || pathname === "/") && hasSession) {
     return applyHeaders(NextResponse.redirect(new URL("/dashboard", req.url)));
   }
 

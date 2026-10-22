@@ -35,7 +35,7 @@ function LoginPageInner() {
         setError(res.status === 429 ? "Too many requests. Please wait and try again." : "Invalid credentials. Please try again.");
         return;
       }
-      window.location.href = next;
+       window.location.replace(next);
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
